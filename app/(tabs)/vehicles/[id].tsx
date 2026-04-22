@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { PhotoGallery } from '@/components/photo-gallery';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -356,56 +357,14 @@ export default function VehicleDetailScreen() {
                 : 'No photos yet.'}
             </ThemedText>
           ) : (
-            <View style={styles.photoGrid}>
-              {media.map((item) => {
-                const isCover = v.coverPhotoId === item.id || (!v.coverPhotoId && item.id === media[0]?.id);
-                const isBusy = photoActionBusy === item.id;
-                return (
-                  <View key={item.id} style={styles.photoTile}>
-                    <View style={[styles.photoFrame, { borderColor: palette.border }]}>
-                      <Image
-                        source={{ uri: item.downloadUrl }}
-                        style={styles.photo}
-                        contentFit="cover"
-                      />
-                      {isCover ? (
-                        <View style={[styles.coverBadge, { backgroundColor: palette.accent }]}>
-                          <ThemedText style={styles.coverBadgeText}>COVER</ThemedText>
-                        </View>
-                      ) : null}
-                    </View>
-                    {isOwner ? (
-                      <View style={styles.photoActions}>
-                        {!isCover ? (
-                          <Pressable
-                            onPress={() => handleSetCover(item.id)}
-                            disabled={isBusy}
-                            style={styles.photoAction}>
-                            <ThemedText
-                              type="metadata"
-                              style={{ color: palette.textMuted, fontWeight: '600' }}>
-                              Set as cover
-                            </ThemedText>
-                          </Pressable>
-                        ) : (
-                          <View style={styles.photoAction} />
-                        )}
-                        <Pressable
-                          onPress={() => handleRemovePhoto(item)}
-                          disabled={isBusy}
-                          style={styles.photoAction}>
-                          <ThemedText
-                            type="metadata"
-                            style={{ color: palette.tint, fontWeight: '600' }}>
-                            Remove
-                          </ThemedText>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
+            <PhotoGallery
+              media={media}
+              vehicle={v}
+              isOwner={isOwner}
+              onSetCover={handleSetCover}
+              onRemove={handleRemovePhoto}
+              photoActionBusy={photoActionBusy}
+            />
           )}
         </View>
 
@@ -637,49 +596,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderBottomWidth: 1,
     gap: 12,
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-  },
-  photoTile: {
-    width: 200,
-    gap: 6,
-  },
-  photoFrame: {
-    aspectRatio: 4 / 3,
-    borderWidth: 1,
-    borderRadius: 6,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  photo: {
-    width: '100%',
-    height: '100%',
-  },
-  coverBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 3,
-  },
-  coverBadgeText: {
-    color: '#1a1a1a',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-  },
-  photoActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 2,
-  },
-  photoAction: {
-    paddingVertical: 4,
   },
   actions: {
     flexDirection: 'row',
