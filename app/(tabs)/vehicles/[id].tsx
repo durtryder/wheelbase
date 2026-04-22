@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { PhotoGallery } from '@/components/photo-gallery';
+import { MediaGallery } from '@/components/media-gallery';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -13,7 +13,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   deleteMediaItem,
   setVehicleCoverPhoto,
-  uploadVehiclePhoto,
+  updateMediaCaption,
+  uploadVehicleMedia,
   watchMediaForVehicle,
 } from '@/services/media';
 import { deleteVehicle, getVehicle } from '@/services/vehicles';
@@ -96,7 +97,7 @@ export default function VehicleDetailScreen() {
     }
   }
 
-  async function handleAddPhotos() {
+  async function handleAddMedia() {
     if (!user || !id) return;
     setMediaError(null);
 
@@ -108,7 +109,7 @@ export default function VehicleDetailScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsMultipleSelection: true,
         quality: 0.85,
       });
@@ -116,21 +117,26 @@ export default function VehicleDetailScreen() {
       if (result.canceled || !result.assets?.length) return;
 
       setUploading(true);
-      let firstMediaId: string | null = null;
+      let firstPhotoId: string | null = null;
       const total = result.assets.length;
       for (let i = 0; i < result.assets.length; i++) {
         const asset = result.assets[i];
+        const isVideo =
+          asset.type === 'video' ||
+          (asset.mimeType?.startsWith('video/') ?? false);
         setUploadProgress({ current: i + 1, total, uploaded: 0, totalBytes: 0 });
-        const item = await uploadVehiclePhoto({
+        const item = await uploadVehicleMedia({
+          kind: isVideo ? 'video' : 'photo',
           ownerId: user.uid,
           vehicleId: id,
           uri: asset.uri,
           width: asset.width,
           height: asset.height,
+          durationMs: isVideo && asset.duration ? asset.duration : undefined,
           onProgress: (uploaded, totalBytes) =>
             setUploadProgress({ current: i + 1, total, uploaded, totalBytes }),
         });
-        if (!firstMediaId) firstMediaId = item.id;
+        if (!isVideo && !firstPhotoId) firstPhotoId = item.id;
 
         // Optimistically insert into the gallery so the user sees it
         // immediately. When onSnapshot catches up it replaces the whole
@@ -141,10 +147,11 @@ export default function VehicleDetailScreen() {
         );
       }
 
-      // If the vehicle doesn't have a cover photo yet, promote the first upload.
-      if (vehicle && !vehicle.coverPhotoId && firstMediaId) {
-        await setVehicleCoverPhoto(id, firstMediaId);
-        setVehicle({ ...vehicle, coverPhotoId: firstMediaId });
+      // If the vehicle doesn't have a cover photo yet, promote the first
+      // uploaded photo. (Videos can't be covers until we render a still.)
+      if (vehicle && !vehicle.coverPhotoId && firstPhotoId) {
+        await setVehicleCoverPhoto(id, firstPhotoId);
+        setVehicle({ ...vehicle, coverPhotoId: firstPhotoId });
       }
     } catch (e) {
       console.error('[detail] upload flow failed', e);
@@ -166,6 +173,15 @@ export default function VehicleDetailScreen() {
     } finally {
       setPhotoActionBusy(null);
     }
+  }
+
+  async function handleUpdateCaption(mediaId: string, caption: string) {
+    await updateMediaCaption(mediaId, caption);
+    // Optimistic local patch so the lightbox shows the new caption without
+    // waiting on the onSnapshot round-trip.
+    setMedia((prev) =>
+      prev.map((m) => (m.id === mediaId ? { ...m, caption } : m)),
+    );
   }
 
   async function handleRemovePhoto(item: MediaItem) {
@@ -343,10 +359,10 @@ export default function VehicleDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText type="subtitle">Photos</ThemedText>
+              <ThemedText type="subtitle">Photos &amp; Videos</ThemedText>
               {isOwner ? (
                 <Pressable
-                  onPress={handleAddPhotos}
+                  onPress={handleAddMedia}
                   disabled={uploading}
                   style={[
                     styles.primaryButton,
@@ -356,7 +372,7 @@ export default function VehicleDetailScreen() {
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <ThemedText style={styles.primaryButtonText}>
-                      {media.length === 0 ? 'Add photos' : 'Add more photos'}
+                      {media.length === 0 ? 'Add photos or videos' : 'Add more'}
                     </ThemedText>
                   )}
                 </Pressable>
@@ -385,16 +401,17 @@ export default function VehicleDetailScreen() {
           {media.length === 0 ? (
             <ThemedText type="metadata" style={{ color: palette.placeholder }}>
               {isOwner
-                ? 'No photos yet. Add a few to bring this build to life.'
-                : 'No photos yet.'}
+                ? 'No media yet. Add photos or videos to bring this build to life.'
+                : 'No media yet.'}
             </ThemedText>
           ) : (
-            <PhotoGallery
+            <MediaGallery
               media={media}
               vehicle={v}
               isOwner={isOwner}
               onSetCover={handleSetCover}
               onRemove={handleRemovePhoto}
+              onUpdateCaption={handleUpdateCaption}
               photoActionBusy={photoActionBusy}
             />
           )}

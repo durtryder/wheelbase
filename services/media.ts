@@ -23,27 +23,43 @@ import type { MediaItem } from '@/types/vehicle';
 const MEDIA = 'media';
 const VEHICLES = 'vehicles';
 
+export type UploadKind = 'photo' | 'video';
+
 /**
- * Upload a single photo from a local/blob URI to Firebase Storage, write a
- * MediaItem metadata row to Firestore, and return the hydrated record.
+ * Upload a single media file (photo or video) from a local/blob URI to
+ * Firebase Storage, write a MediaItem metadata row to Firestore, and return
+ * the hydrated record.
  *
  * Uses uploadBytesResumable so we can surface progress and distinguish
  * cleanly between Storage errors and Firestore errors. Each step is logged
  * to the console so stalls are diagnosable from DevTools.
  *
- * Path layout: users/{uid}/vehicles/{vehicleId}/photos/{mediaId}.{ext}
+ * Path layout:
+ *   users/{uid}/vehicles/{vehicleId}/photos/{mediaId}.{ext}
+ *   users/{uid}/vehicles/{vehicleId}/videos/{mediaId}.{ext}
  */
-export async function uploadVehiclePhoto(params: {
+export async function uploadVehicleMedia(params: {
+  kind: UploadKind;
   ownerId: string;
   vehicleId: string;
   uri: string;
   width?: number;
   height?: number;
+  durationMs?: number;
   onProgress?: (uploaded: number, total: number) => void;
 }): Promise<MediaItem> {
-  const { ownerId, vehicleId, uri, width, height, onProgress } = params;
+  const {
+    kind,
+    ownerId,
+    vehicleId,
+    uri,
+    width,
+    height,
+    durationMs,
+    onProgress,
+  } = params;
 
-  console.log('[media] fetching blob from', uri);
+  console.log(`[media] fetching ${kind} blob from`, uri);
   let blob: Blob;
   try {
     const response = await fetch(uri);
@@ -56,14 +72,16 @@ export async function uploadVehiclePhoto(params: {
     );
   }
 
-  const mimeType = blob.type || 'image/jpeg';
-  const extension = extensionFor(mimeType);
+  const defaultMime = kind === 'video' ? 'video/mp4' : 'image/jpeg';
+  const mimeType = blob.type || defaultMime;
+  const extension = extensionFor(mimeType, kind);
   const mediaId = generateId();
-  const path = `users/${ownerId}/vehicles/${vehicleId}/photos/${mediaId}.${extension}`;
+  const folder = kind === 'video' ? 'videos' : 'photos';
+  const path = `users/${ownerId}/vehicles/${vehicleId}/${folder}/${mediaId}.${extension}`;
 
   const objectRef = storageRef(storage, path);
 
-  console.log('[media] starting upload to', path);
+  console.log(`[media] starting ${kind} upload to`, path);
   const task = uploadBytesResumable(objectRef, blob, { contentType: mimeType });
 
   await new Promise<void>((resolve, reject) => {
@@ -109,11 +127,12 @@ export async function uploadVehiclePhoto(params: {
     const docRef = await addDoc(collection(db, MEDIA), {
       vehicleId,
       ownerId,
-      kind: 'photo',
+      kind,
       storagePath: path,
       downloadUrl,
       width,
       height,
+      durationMs,
       createdAt: serverTimestamp(),
     });
     docId = docRef.id;
@@ -121,7 +140,7 @@ export async function uploadVehiclePhoto(params: {
   } catch (e) {
     console.error('[media] addDoc failed', e);
     throw new Error(
-      `Saved the photo to storage but couldn't write metadata: ${
+      `Saved the file to storage but couldn't write metadata: ${
         e instanceof Error ? e.message : 'unknown'
       }`,
     );
@@ -131,12 +150,25 @@ export async function uploadVehiclePhoto(params: {
     id: docId,
     vehicleId,
     ownerId,
-    kind: 'photo',
+    kind,
     storagePath: path,
     downloadUrl,
     width,
     height,
+    durationMs,
   } as MediaItem;
+}
+
+/** Thin compatibility wrapper for the photo-only call site. */
+export function uploadVehiclePhoto(params: {
+  ownerId: string;
+  vehicleId: string;
+  uri: string;
+  width?: number;
+  height?: number;
+  onProgress?: (uploaded: number, total: number) => void;
+}) {
+  return uploadVehicleMedia({ ...params, kind: 'photo' });
 }
 
 export function watchMediaForVehicle(
@@ -175,11 +207,32 @@ export async function setVehicleCoverPhoto(vehicleId: string, mediaId: string | 
   });
 }
 
+/** Update (or clear) a MediaItem's caption. Owner-only at the rules layer. */
+export async function updateMediaCaption(
+  mediaId: string,
+  caption: string,
+): Promise<void> {
+  await updateDoc(doc(db, MEDIA, mediaId), {
+    caption: caption.trim() || '',
+  });
+}
+
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function extensionFor(mimeType: string): string {
+function extensionFor(mimeType: string, kind: UploadKind): string {
+  if (kind === 'video') {
+    const map: Record<string, string> = {
+      'video/mp4': 'mp4',
+      'video/quicktime': 'mov',
+      'video/x-m4v': 'm4v',
+      'video/webm': 'webm',
+      'video/ogg': 'ogv',
+      'video/3gpp': '3gp',
+    };
+    return map[mimeType] ?? 'mp4';
+  }
   const map: Record<string, string> = {
     'image/jpeg': 'jpg',
     'image/jpg': 'jpg',
