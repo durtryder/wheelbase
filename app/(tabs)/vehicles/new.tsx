@@ -197,9 +197,18 @@ export default function VehicleBuilderScreen() {
               Heads up
             </ThemedText>
             <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 4 }}>
-              You aren&apos;t signed in. You can build the form now, but saving requires Firebase
-              Auth and Firestore to be enabled.
+              You aren&apos;t signed in. You can build the form now, but you&apos;ll need an
+              account to save this vehicle.
             </ThemedText>
+            <View style={styles.bannerAction}>
+              <Pressable
+                onPress={() => router.push('/sign-in')}
+                style={[styles.secondaryButton, { borderColor: palette.tint }]}>
+                <ThemedText style={[styles.secondaryButtonText, { color: palette.tint }]}>
+                  Sign in or create account
+                </ThemedText>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -511,6 +520,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: 14,
+  },
+  bannerAction: {
+    flexDirection: 'row',
+    marginTop: 10,
   },
   section: {
     gap: 16,

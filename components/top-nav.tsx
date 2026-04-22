@@ -2,12 +2,16 @@ import { Image } from 'expo-image';
 import { useRouter, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAuth } from '@/hooks/use-auth';
+
 const LOGO = require('@/assets/images/logo.png');
 
 const NAV_BG = '#f6f1e8';
 const NAV_BORDER = '#d6cfbf';
 const NAV_TEXT = '#1a1a1a';
+const NAV_TEXT_MUTED = '#5a5751';
 const NAV_ACCENT = '#c9a24a';
+const NAV_RED = '#c1272d';
 
 const LINKS = [
   { href: '/', label: 'Garage' },
@@ -18,6 +22,7 @@ const LINKS = [
 export function TopNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, loading } = useAuth();
 
   return (
     <View style={styles.wrap}>
@@ -47,6 +52,29 @@ export function TopNav() {
               </Pressable>
             );
           })}
+
+          {!loading && (
+            <View style={styles.divider} />
+          )}
+
+          {!loading &&
+            (user ? (
+              <Pressable
+                onPress={() => router.push('/profile')}
+                accessibilityRole="link"
+                style={styles.link}>
+                <Text style={styles.linkMuted} numberOfLines={1}>
+                  {user.displayName ?? user.email ?? 'Account'}
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => router.push('/sign-in')}
+                accessibilityRole="link"
+                style={styles.link}>
+                <Text style={styles.linkCta}>Sign in</Text>
+              </Pressable>
+            ))}
         </View>
       </View>
     </View>
@@ -111,5 +139,23 @@ const styles = StyleSheet.create({
     color: NAV_TEXT,
     fontSize: 15,
     fontWeight: '700',
+  },
+  linkMuted: {
+    color: NAV_TEXT_MUTED,
+    fontSize: 14,
+    fontWeight: '500',
+    maxWidth: 180,
+  },
+  linkCta: {
+    color: NAV_RED,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  divider: {
+    width: 1,
+    alignSelf: 'stretch',
+    marginHorizontal: 8,
+    marginVertical: 18,
+    backgroundColor: NAV_BORDER,
   },
 });
