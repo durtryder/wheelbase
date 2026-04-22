@@ -1,6 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { BrandHeader } from '@/components/brand-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -13,17 +12,9 @@ export default function GarageScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <BrandHeader height={96} />
-
         <View style={styles.titleBlock}>
-          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
-            The Garage
-          </ThemedText>
-          <ThemedText type="title">Your Collection</ThemedText>
+          <ThemedText type="title">My Garage</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
-          <ThemedText type="metadata" style={{ color: palette.textMuted, textAlign: 'center' }}>
-            Specs, customizations, and stories for every vehicle you own.
-          </ThemedText>
         </View>
 
         <ThemedView
@@ -51,8 +42,7 @@ export default function GarageScreen() {
               type="default"
               style={{ color: palette.textMuted, marginTop: 4 }}>
               Add a vehicle to pull its OEM specs from NHTSA and begin
-              documenting customizations, service, and provenance — the full
-              story, Bring-a-Trailer style.
+              documenting customizations, service, and provenance.
             </ThemedText>
 
             <View style={[styles.hairline, { backgroundColor: palette.border }]} />
@@ -74,14 +64,6 @@ export default function GarageScreen() {
             </Pressable>
           </View>
         </ThemedView>
-
-        <View style={styles.footnote}>
-          <ThemedText
-            type="metadata"
-            style={{ color: palette.textMuted, textAlign: 'center' }}>
-            OEM specs courtesy of the NHTSA vPIC database.
-          </ThemedText>
-        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -98,9 +80,7 @@ function MetaItem({
 }) {
   return (
     <View style={styles.metaItem}>
-      <ThemedText
-        type="eyebrow"
-        style={{ color: palette.textMuted }}>
+      <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
         {label}
       </ThemedText>
       <ThemedText type="subtitle" style={{ marginTop: 2 }}>
@@ -118,7 +98,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 48,
     paddingBottom: 48,
     gap: 24,
     maxWidth: 780,
@@ -133,7 +113,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 2,
     marginTop: 2,
-    marginBottom: 2,
   },
   card: {
     borderWidth: 1,
@@ -157,7 +136,6 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 0,
   },
   metaItem: {
     flex: 1,
@@ -182,9 +160,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-  },
-  footnote: {
-    marginTop: 4,
-    alignItems: 'center',
   },
 });
