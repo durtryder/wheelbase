@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useRouter, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 
 const LOGO = require('@/assets/images/logo.png');
@@ -126,23 +127,23 @@ const styles = StyleSheet.create({
   linkText: {
     color: NAV_TEXT,
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.sans.medium,
   },
   linkTextActive: {
     color: NAV_TEXT,
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: Fonts.sans.bold,
   },
   linkMuted: {
     color: NAV_TEXT_MUTED,
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: Fonts.sans.medium,
     maxWidth: 180,
   },
   linkCta: {
     color: NAV_RED,
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.sans.semibold,
   },
   divider: {
     width: 1,

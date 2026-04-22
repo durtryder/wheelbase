@@ -43,48 +43,48 @@ export function ThemedText({
   );
 }
 
+// Each weighted family ships as its own font name via @expo-google-fonts —
+// so we don't use fontWeight, we pick the family that represents the weight.
 const styles = StyleSheet.create({
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sans.regular,
   },
   defaultSemiBold: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '600',
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sans.semibold,
   },
   title: {
     fontSize: 34,
-    fontWeight: '700',
     lineHeight: 38,
     fontFamily: Fonts.serif,
+    fontWeight: '700',
     letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 22,
-    fontWeight: '700',
     lineHeight: 28,
     fontFamily: Fonts.serif,
+    fontWeight: '700',
   },
   eyebrow: {
     fontSize: 11,
-    fontWeight: '700',
     letterSpacing: 1.4,
     textTransform: 'uppercase',
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sans.bold,
   },
   metadata: {
     fontSize: 13,
     lineHeight: 18,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sans.regular,
     letterSpacing: 0.2,
   },
   link: {
     fontSize: 16,
     lineHeight: 30,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sans.medium,
     color: '#0a7ea4',
   },
 });

@@ -58,26 +58,28 @@ export const Colors = {
 };
 
 /**
- * Font stacks. Serif is used for editorial titles (vehicle names, page
- * headings); sans is used for UI and body copy.
+ * Font stacks. Sans is Manrope (Google Fonts), chosen as a free modernist
+ * stand-in for Daytona. Each weight is its own family name because
+ * @expo-google-fonts/manrope ships weights as discrete fonts.
+ *
+ * Serif stays as a web CSS stack for editorial titles — tighten later if
+ * we want to ship a custom serif face too.
  */
-export const Fonts = Platform.select({
-  ios: {
-    sans: 'system-ui',
-    serif: 'ui-serif',
-    rounded: 'ui-rounded',
-    mono: 'ui-monospace',
+export const Fonts = {
+  sans: {
+    regular: 'Manrope_400Regular',
+    medium: 'Manrope_500Medium',
+    semibold: 'Manrope_600SemiBold',
+    bold: 'Manrope_700Bold',
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "'Playfair Display', Georgia, 'Times New Roman', 'Tiempos Text', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+  serif: Platform.select({
+    ios: 'ui-serif',
+    default: 'serif',
+    web: "'Playfair Display', Georgia, 'Times New Roman', 'Tiempos Text', serif",
+  }) as string,
+  mono: Platform.select({
+    ios: 'ui-monospace',
+    default: 'monospace',
+    web: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  }) as string,
+};

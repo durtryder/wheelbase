@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type Props = Omit<TextInputProps, 'style'> & {
@@ -44,8 +44,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: '700',
     letterSpacing: 1.4,
+    fontFamily: Fonts.sans.bold,
   },
   input: {
     borderWidth: 1,
@@ -53,9 +53,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
+    fontFamily: Fonts.sans.regular,
   },
   hint: {
     fontSize: 12,
     lineHeight: 16,
+    fontFamily: Fonts.sans.regular,
   },
 });
