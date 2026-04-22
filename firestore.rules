@@ -31,6 +31,20 @@ service cloud.firestore {
                     && request.auth.uid == resource.data.ownerId;
     }
 
+    // Media items: metadata rows that point at Storage objects. Public read
+    // (metadata carries a download URL which is already shareable by anyone
+    // who's seen the vehicle), owner-only write.
+    match /media/{mediaId} {
+      allow read: if true;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.ownerId
+                    && request.resource.data.keys().hasAll(['vehicleId', 'ownerId', 'kind', 'storagePath']);
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
+    }
+
     // Default deny for anything else.
     match /{document=**} {
       allow read, write: if false;

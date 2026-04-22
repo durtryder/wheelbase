@@ -1,5 +1,7 @@
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -7,8 +9,14 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  deleteMediaItem,
+  setVehicleCoverPhoto,
+  uploadVehiclePhoto,
+  watchMediaForVehicle,
+} from '@/services/media';
 import { deleteVehicle, getVehicle } from '@/services/vehicles';
-import type { OemSpecs, Vehicle } from '@/types/vehicle';
+import type { MediaItem, OemSpecs, Vehicle } from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
 
@@ -22,6 +30,11 @@ export default function VehicleDetailScreen() {
   const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [photoActionBusy, setPhotoActionBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +52,25 @@ export default function VehicleDetailScreen() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    setMediaError(null);
+    const unsub = watchMediaForVehicle(
+      id,
+      (items) => setMedia(items),
+      (e) => setMediaError(e.message),
+    );
+    return unsub;
+  }, [id]);
+
+  const coverMedia = useMemo(() => {
+    if (!vehicle) return null;
+    if (vehicle.coverPhotoId) {
+      return media.find((m) => m.id === vehicle.coverPhotoId) ?? null;
+    }
+    return media[0] ?? null;
+  }, [vehicle, media]);
+
   async function handleDelete() {
     if (!id) return;
     if (typeof window !== 'undefined' && !window.confirm('Delete this vehicle? This cannot be undone.')) {
@@ -46,12 +78,89 @@ export default function VehicleDetailScreen() {
     }
     setDeleting(true);
     try {
+      // Best-effort: remove media objects too so we don't orphan storage.
+      await Promise.allSettled(media.map((m) => deleteMediaItem(m)));
       await deleteVehicle(id);
       router.replace('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Delete failed.');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleAddPhotos() {
+    if (!user || !id) return;
+    setMediaError(null);
+
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted' && perm.status !== 'undetermined') {
+        setMediaError('Photo library permission denied.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      setUploading(true);
+      let firstMediaId: string | null = null;
+      for (const asset of result.assets) {
+        const item = await uploadVehiclePhoto({
+          ownerId: user.uid,
+          vehicleId: id,
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+        });
+        if (!firstMediaId) firstMediaId = item.id;
+      }
+
+      // If the vehicle doesn't have a cover photo yet, promote the first upload.
+      if (vehicle && !vehicle.coverPhotoId && firstMediaId) {
+        await setVehicleCoverPhoto(id, firstMediaId);
+        setVehicle({ ...vehicle, coverPhotoId: firstMediaId });
+      }
+    } catch (e) {
+      setMediaError(e instanceof Error ? e.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSetCover(mediaId: string) {
+    if (!id || !vehicle) return;
+    setPhotoActionBusy(mediaId);
+    try {
+      await setVehicleCoverPhoto(id, mediaId);
+      setVehicle({ ...vehicle, coverPhotoId: mediaId });
+    } catch (e) {
+      setMediaError(e instanceof Error ? e.message : 'Could not set cover.');
+    } finally {
+      setPhotoActionBusy(null);
+    }
+  }
+
+  async function handleRemovePhoto(item: MediaItem) {
+    if (!id || !vehicle) return;
+    if (typeof window !== 'undefined' && !window.confirm('Remove this photo?')) return;
+    setPhotoActionBusy(item.id);
+    try {
+      await deleteMediaItem(item);
+      if (vehicle.coverPhotoId === item.id) {
+        const next = media.find((m) => m.id !== item.id)?.id ?? null;
+        await setVehicleCoverPhoto(id, next);
+        setVehicle({ ...vehicle, coverPhotoId: next ?? undefined });
+      }
+    } catch (e) {
+      setMediaError(e instanceof Error ? e.message : 'Remove failed.');
+    } finally {
+      setPhotoActionBusy(null);
     }
   }
 
@@ -116,10 +225,22 @@ export default function VehicleDetailScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.hero, { backgroundColor: palette.surfaceDim, borderColor: palette.border }]}>
-          <ThemedText type="eyebrow" style={{ color: palette.placeholder, letterSpacing: 2 }}>
-            Photo — coming in Step 4
-          </ThemedText>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: palette.surfaceDim, borderColor: palette.border },
+          ]}>
+          {coverMedia ? (
+            <Image
+              source={{ uri: coverMedia.downloadUrl }}
+              style={styles.heroImage}
+              contentFit="cover"
+            />
+          ) : (
+            <ThemedText type="eyebrow" style={{ color: palette.placeholder, letterSpacing: 2 }}>
+              No photo yet
+            </ThemedText>
+          )}
         </View>
 
         <View style={styles.titleBlock}>
@@ -196,6 +317,97 @@ export default function VehicleDetailScreen() {
             <DetailRow label="Vehicle Type" value={v.oemSpecs.vehicleType} palette={palette} />
           </Section>
         ) : null}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText type="subtitle">Photos</ThemedText>
+              {isOwner ? (
+                <Pressable
+                  onPress={handleAddPhotos}
+                  disabled={uploading}
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: palette.tint, opacity: uploading ? 0.6 : 1 },
+                  ]}>
+                  {uploading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <ThemedText style={styles.primaryButtonText}>
+                      {media.length === 0 ? 'Add photos' : 'Add more photos'}
+                    </ThemedText>
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
+            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+          </View>
+
+          {mediaError ? (
+            <ThemedText type="metadata" style={{ color: palette.tint }}>
+              {mediaError}
+            </ThemedText>
+          ) : null}
+
+          {media.length === 0 ? (
+            <ThemedText type="metadata" style={{ color: palette.placeholder }}>
+              {isOwner
+                ? 'No photos yet. Add a few to bring this build to life.'
+                : 'No photos yet.'}
+            </ThemedText>
+          ) : (
+            <View style={styles.photoGrid}>
+              {media.map((item) => {
+                const isCover = v.coverPhotoId === item.id || (!v.coverPhotoId && item.id === media[0]?.id);
+                const isBusy = photoActionBusy === item.id;
+                return (
+                  <View key={item.id} style={styles.photoTile}>
+                    <View style={[styles.photoFrame, { borderColor: palette.border }]}>
+                      <Image
+                        source={{ uri: item.downloadUrl }}
+                        style={styles.photo}
+                        contentFit="cover"
+                      />
+                      {isCover ? (
+                        <View style={[styles.coverBadge, { backgroundColor: palette.accent }]}>
+                          <ThemedText style={styles.coverBadgeText}>COVER</ThemedText>
+                        </View>
+                      ) : null}
+                    </View>
+                    {isOwner ? (
+                      <View style={styles.photoActions}>
+                        {!isCover ? (
+                          <Pressable
+                            onPress={() => handleSetCover(item.id)}
+                            disabled={isBusy}
+                            style={styles.photoAction}>
+                            <ThemedText
+                              type="metadata"
+                              style={{ color: palette.textMuted, fontWeight: '600' }}>
+                              Set as cover
+                            </ThemedText>
+                          </Pressable>
+                        ) : (
+                          <View style={styles.photoAction} />
+                        )}
+                        <Pressable
+                          onPress={() => handleRemovePhoto(item)}
+                          disabled={isBusy}
+                          style={styles.photoAction}>
+                          <ThemedText
+                            type="metadata"
+                            style={{ color: palette.tint, fontWeight: '600' }}>
+                            Remove
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         <View style={styles.actions}>
           <Pressable
@@ -367,6 +579,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
   titleBlock: {
     gap: 8,
@@ -397,6 +614,13 @@ const styles = StyleSheet.create({
   sectionHeader: {
     gap: 10,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
   sectionRule: {
     height: 1,
     width: '100%',
@@ -413,6 +637,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderBottomWidth: 1,
     gap: 12,
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  photoTile: {
+    width: 200,
+    gap: 6,
+  },
+  photoFrame: {
+    aspectRatio: 4 / 3,
+    borderWidth: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  coverBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 3,
+  },
+  coverBadgeText: {
+    color: '#1a1a1a',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
+  photoActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  photoAction: {
+    paddingVertical: 4,
   },
   actions: {
     flexDirection: 'row',
@@ -448,5 +715,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 12,
+  },
+  primaryButton: {
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 6,
+    minWidth: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -1,10 +1,17 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  doc,
+  getDoc,
+} from 'firebase/firestore';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { db } from '@/lib/firebase';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { Vehicle } from '@/types/vehicle';
+import type { MediaItem, Vehicle } from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
 
@@ -12,6 +19,31 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  // Fetch just the cover photo's download URL when the vehicle has one. We
+  // avoid subscribing to the whole /media collection per card so the Garage
+  // stays cheap to render.
+  useEffect(() => {
+    let cancelled = false;
+    if (!vehicle.coverPhotoId) {
+      setCoverUrl(null);
+      return;
+    }
+    getDoc(doc(db, 'media', vehicle.coverPhotoId))
+      .then((snap) => {
+        if (cancelled) return;
+        const data = snap.exists() ? (snap.data() as Partial<MediaItem>) : null;
+        setCoverUrl(data?.downloadUrl ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setCoverUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicle.coverPhotoId]);
 
   const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
     .filter(Boolean)
@@ -31,9 +63,13 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
         },
       ]}>
       <View style={[styles.hero, { backgroundColor: palette.surfaceDim }]}>
-        <ThemedText type="eyebrow" style={{ color: palette.placeholder, letterSpacing: 2 }}>
-          No photo
-        </ThemedText>
+        {coverUrl ? (
+          <Image source={{ uri: coverUrl }} style={styles.heroImage} contentFit="cover" />
+        ) : (
+          <ThemedText type="eyebrow" style={{ color: palette.placeholder, letterSpacing: 2 }}>
+            No photo
+          </ThemedText>
+        )}
       </View>
 
       <View style={styles.body}>
@@ -116,6 +152,10 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
   body: {
     padding: 20,
