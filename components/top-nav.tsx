@@ -1,8 +1,6 @@
 import { Image } from 'expo-image';
-import { Link, usePathname } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
+import { useRouter, usePathname } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 const LOGO = require('@/assets/images/logo.png');
 
@@ -19,36 +17,35 @@ const LINKS = [
 ] as const;
 
 export function TopNav() {
+  const router = useRouter();
   const pathname = usePathname();
 
   return (
     <View style={styles.wrap}>
       <View style={styles.inner}>
-        <Link href="/" asChild>
-          <Pressable style={styles.brand} accessibilityLabel="Wheelbase home">
-            <Image source={LOGO} style={styles.logo} contentFit="contain" />
-            <ThemedText style={styles.wordmark}>WHEELBASE</ThemedText>
-          </Pressable>
-        </Link>
+        <Pressable
+          onPress={() => router.push('/')}
+          style={styles.brand}
+          accessibilityRole="link"
+          accessibilityLabel="Wheelbase home">
+          <Image source={LOGO} style={styles.logo} contentFit="contain" />
+          <Text style={styles.wordmark}>WHEELBASE</Text>
+        </Pressable>
 
         <View style={styles.links}>
           {LINKS.map((link) => {
             const isActive =
               link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
             return (
-              <Link key={link.href} href={link.href} asChild>
-                <Pressable
-                  style={[
-                    styles.link,
-                    isActive && { borderBottomColor: NAV_ACCENT },
-                  ]}>
-                  <ThemedText
-                    type="eyebrow"
-                    style={{ color: isActive ? NAV_TEXT_ACTIVE : NAV_TEXT }}>
-                    {link.label}
-                  </ThemedText>
-                </Pressable>
-              </Link>
+              <Pressable
+                key={link.href}
+                onPress={() => router.push(link.href)}
+                accessibilityRole="link"
+                style={isActive ? styles.linkActive : styles.link}>
+                <Text style={isActive ? styles.linkTextActive : styles.linkText}>
+                  {link.label.toUpperCase()}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
@@ -91,7 +88,6 @@ const styles = StyleSheet.create({
   links: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 4,
   },
   link: {
     paddingHorizontal: 14,
@@ -99,5 +95,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
     justifyContent: 'center',
+  },
+  linkActive: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: NAV_ACCENT,
+    justifyContent: 'center',
+  },
+  linkText: {
+    color: NAV_TEXT,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
+  linkTextActive: {
+    color: NAV_TEXT_ACTIVE,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
   },
 });
