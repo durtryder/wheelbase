@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -6,6 +7,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function GarageScreen() {
+  const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
 
@@ -56,9 +58,7 @@ export default function GarageScreen() {
             </View>
 
             <Pressable
-              onPress={() => {
-                /* TODO: open Add Vehicle flow */
-              }}
+              onPress={() => router.push('/vehicles/new')}
               style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
               <ThemedText style={styles.primaryButtonText}>Add a vehicle</ThemedText>
             </Pressable>
