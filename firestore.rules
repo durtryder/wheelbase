@@ -45,6 +45,18 @@ service cloud.firestore {
                             && request.auth.uid == resource.data.ownerId;
     }
 
+    // Vehicle documents — PDFs, scanned invoices, service records, etc.
+    match /documents/{documentId} {
+      allow read: if true;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.ownerId
+                    && request.resource.data.keys().hasAll(['vehicleId', 'ownerId', 'title', 'storagePath', 'downloadUrl']);
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
+    }
+
     // Default deny for anything else.
     match /{document=**} {
       allow read, write: if false;

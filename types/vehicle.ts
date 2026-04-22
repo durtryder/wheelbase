@@ -42,8 +42,9 @@ export type Vehicle = {
   knownFlaws?: HistoryEntry[];
   serviceHistory?: HistoryEntry[];
   ownershipHistory?: OwnershipEntry[];
-  documentation?: DocumentItem[];
   includedItems?: string[];
+  // Actual uploaded documents (PDFs, scans) live in the /documents collection
+  // and are joined on vehicleId at query time.
 
   // Customizations (user's mods, categorized)
   modifications: Modification[];
@@ -138,23 +139,66 @@ export type OwnershipEntry = {
   notes?: string;
 };
 
-export type DocumentItem = {
+/**
+ * A file uploaded to document the vehicle — PDF, scanned image, etc.
+ * Lives in its own /documents Firestore collection so we can query by
+ * vehicleId without bloating the Vehicle doc.
+ */
+export type VehicleDocument = {
   id: string;
+  vehicleId: string;
+  ownerId: string;
+
+  title: string;
   kind: DocumentKind;
-  label?: string;
-  mediaId: string;
+  description?: string;
+
+  storagePath: string;
+  downloadUrl: string;
+  mimeType: string;
+  fileSize?: number;
+
+  /** Date that appears on the document itself (e.g., service date). */
+  documentDate?: Timestamp;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };
 
 export type DocumentKind =
+  | 'service-record'
+  | 'shop-invoice'
+  | 'award'
   | 'window-sticker'
   | 'build-sheet'
   | 'marti-report'
   | 'pozzi-report'
   | 'coa'
-  | 'service-record'
   | 'title'
+  | 'registration'
+  | 'insurance'
+  | 'inspection'
   | 'manual'
+  | 'correspondence'
   | 'other';
+
+export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
+  'service-record': 'Service Record',
+  'shop-invoice': 'Shop Invoice',
+  award: 'Award',
+  'window-sticker': 'Window Sticker',
+  'build-sheet': 'Build Sheet',
+  'marti-report': 'Marti Report',
+  'pozzi-report': 'Pozzi Report',
+  coa: 'Certificate of Authenticity',
+  title: 'Title',
+  registration: 'Registration',
+  insurance: 'Insurance',
+  inspection: 'Inspection',
+  manual: 'Owner\u2019s Manual',
+  correspondence: 'Correspondence',
+  other: 'Other',
+};
 
 export type Modification = {
   id: string;

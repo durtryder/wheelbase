@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { DocumentList } from '@/components/document-list';
 import { MediaGallery } from '@/components/media-gallery';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -415,6 +416,18 @@ export default function VehicleDetailScreen() {
               photoActionBusy={photoActionBusy}
             />
           )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">Documentation</ThemedText>
+            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+          </View>
+          <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+            Service records, shop invoices, awards, build sheets, Marti reports
+            — any paperwork worth keeping with the car.
+          </ThemedText>
+          <DocumentList vehicleId={v.id} ownerId={v.ownerId} isOwner={isOwner} />
         </View>
 
         <View style={styles.actions}>
