@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 
 const LOGO = require('@/assets/images/logo.png');
-const WORDMARK = require('@/assets/images/wordmark.png');
 
 const NAV_BG = '#f6f1e8';
 const NAV_BORDER = '#d6cfbf';
@@ -34,7 +33,6 @@ export function TopNav() {
           accessibilityRole="link"
           accessibilityLabel="Wheelbase home">
           <Image source={LOGO} style={styles.logo} contentFit="contain" />
-          <Image source={WORDMARK} style={styles.wordmark} contentFit="contain" />
         </Pressable>
 
         <View style={styles.links}>
@@ -106,10 +104,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 88,
     height: 88,
-  },
-  wordmark: {
-    width: 240,
-    height: 76,
   },
   links: {
     flexDirection: 'row',
