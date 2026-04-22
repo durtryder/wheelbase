@@ -51,7 +51,9 @@ export function humanizeAuthError(e: unknown): string {
       case 'auth/network-request-failed':
         return 'Network error. Check your connection and try again.';
       case 'auth/operation-not-allowed':
-        return 'Email/password sign-in is not enabled. Enable it in Firebase Console → Authentication → Sign-in method.';
+        return 'Email/password sign-in is not enabled. In Firebase Console → Authentication → Sign-in method, enable Email/Password.';
+      case 'auth/configuration-not-found':
+        return 'Firebase Authentication is not initialized for this project. In Firebase Console → Build → Authentication, click "Get started", then enable Email/Password under Sign-in method.';
       case 'auth/user-disabled':
         return 'This account has been disabled.';
       default:
