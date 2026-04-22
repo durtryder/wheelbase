@@ -1,6 +1,5 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { BrandHeader } from '@/components/brand-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -13,25 +12,39 @@ export default function FeedScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <BrandHeader height={80} />
-
         <View style={styles.titleBlock}>
-          <ThemedText type="title">Community Feed</ThemedText>
-          <ThemedText style={{ color: palette.icon }}>
-            Public builds shared by other enthusiasts.
+          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+            The Feed
+          </ThemedText>
+          <ThemedText type="title">Community Builds</ThemedText>
+          <View style={[styles.rule, { backgroundColor: palette.accent }]} />
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted, textAlign: 'center' }}>
+            Public vehicle profiles shared by other enthusiasts.
           </ThemedText>
         </View>
 
         <ThemedView
           style={[
-            styles.placeholder,
+            styles.card,
             { borderColor: palette.border, backgroundColor: palette.surface },
           ]}>
-          <View style={[styles.badgeDot, { backgroundColor: palette.accent }]} />
-          <ThemedText type="subtitle">Coming soon</ThemedText>
-          <ThemedText style={[styles.placeholderBody, { color: palette.icon }]}>
-            Once users start sharing public vehicle profiles, they&apos;ll appear here.
-          </ThemedText>
+          <View style={[styles.cardHero, { backgroundColor: palette.surfaceDim }]}>
+            <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+              Coming Soon
+            </ThemedText>
+          </View>
+          <View style={styles.cardBody}>
+            <ThemedText type="subtitle">Public listings roll in here.</ThemedText>
+            <ThemedText
+              type="default"
+              style={{ color: palette.textMuted, marginTop: 4 }}>
+              Once users publish vehicle profiles, their builds will appear as
+              cards in this feed — hero photo, stats, and quick links into the
+              full spec sheet.
+            </ThemedText>
+          </View>
         </ThemedView>
       </ScrollView>
     </ThemedView>
@@ -41,22 +54,17 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
-    gap: 20,
-    maxWidth: 760,
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 48,
+    gap: 24,
+    maxWidth: 780,
     width: '100%',
     alignSelf: 'center',
   },
-  titleBlock: { gap: 6, alignItems: 'center' },
-  placeholder: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 28,
-    alignItems: 'center',
-    gap: 10,
-  },
-  badgeDot: { width: 40, height: 40, borderRadius: 20 },
-  placeholderBody: { textAlign: 'center', maxWidth: 360 },
+  titleBlock: { gap: 10, alignItems: 'center' },
+  rule: { width: 40, height: 2, marginTop: 2, marginBottom: 2 },
+  card: { borderWidth: 1, borderRadius: 4, overflow: 'hidden' },
+  cardHero: { aspectRatio: 16 / 9, alignItems: 'center', justifyContent: 'center' },
+  cardBody: { padding: 24, gap: 6 },
 });
