@@ -166,8 +166,8 @@ export default function VehicleBuilderScreen() {
         visibility: 'private',
       };
 
-      await createVehicle(input);
-      router.replace('/');
+      const newId = await createVehicle(input);
+      router.replace(`/vehicles/${newId}`);
     } catch (e) {
       setSaveError(
         e instanceof Error

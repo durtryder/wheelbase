@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -25,6 +26,30 @@ export async function listVehiclesForOwner(ownerId: string): Promise<Vehicle[]> 
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Vehicle);
+}
+
+/**
+ * Subscribe to live updates of the owner's vehicles. Returns an unsubscribe
+ * fn suitable for React useEffect cleanup.
+ */
+export function watchVehiclesForOwner(
+  ownerId: string,
+  onNext: (vehicles: Vehicle[]) => void,
+  onError: (err: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, VEHICLES),
+    where('ownerId', '==', ownerId),
+    orderBy('createdAt', 'desc'),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const vehicles = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Vehicle);
+      onNext(vehicles);
+    },
+    (err) => onError(err),
+  );
 }
 
 export async function getVehicle(id: string): Promise<Vehicle | null> {

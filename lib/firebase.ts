@@ -3,7 +3,7 @@ import { getApp, getApps, initializeApp, type FirebaseOptions } from 'firebase/a
 import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
 // @ts-expect-error — getReactNativePersistence is exported at runtime but not in the web types bundle
 import { getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
@@ -23,5 +23,16 @@ export const auth: Auth =
     ? getAuth(app)
     : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 
-export const db = getFirestore(app);
+// `initializeFirestore` must be called before any other Firestore API for the
+// custom settings to apply. On hot-reload it can already be initialized — fall
+// back to `getFirestore` in that case.
+function initDb() {
+  try {
+    return initializeFirestore(app, { ignoreUndefinedProperties: true });
+  } catch {
+    return getFirestore(app);
+  }
+}
+export const db = initDb();
+
 export const storage = getStorage(app);
