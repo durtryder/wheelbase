@@ -221,5 +221,21 @@ export type MediaItem = {
   caption?: string;
   isHero?: boolean;
   order?: number;
+  /** When the photo was captured (from EXIF); photos only. */
+  takenAt?: Timestamp;
+  /** Camera-ish details pulled from EXIF when available. */
+  exif?: MediaExif;
   createdAt: Timestamp;
+};
+
+export type MediaExif = {
+  cameraMake?: string;
+  cameraModel?: string;
+  lensModel?: string;
+  focalLengthMm?: number;
+  aperture?: number;
+  shutterSeconds?: number;
+  iso?: number;
+  latitude?: number;
+  longitude?: number;
 };

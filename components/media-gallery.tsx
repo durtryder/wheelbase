@@ -287,7 +287,7 @@ function Lightbox({
 
   const isCover = item.id === vehicle.coverPhotoId;
   const isBusy = photoActionBusy === item.id;
-  const createdAt = formatTimestamp(item.createdAt);
+  const dateDisplay = formatDateForItem(item);
 
   async function handleSaveCaption() {
     if (savingCaption) return;
@@ -403,7 +403,9 @@ function Lightbox({
                   item.kind === 'video' && item.durationMs
                     ? formatDuration(item.durationMs)
                     : null,
-                  createdAt,
+                  dateDisplay,
+                  formatCameraLine(item.exif),
+                  formatExposureLine(item.exif),
                   item.width && item.height ? `${item.width} × ${item.height}` : null,
                   isCover ? 'Cover photo' : null,
                 ]
@@ -566,6 +568,46 @@ function formatTimestamp(ts: MediaItem['createdAt']): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Prefer the actual capture date (EXIF DateTimeOriginal) over the upload
+ * timestamp, and label each appropriately so the user can tell them apart.
+ */
+function formatDateForItem(item: MediaItem): string | null {
+  const taken = item.takenAt ? formatTimestamp(item.takenAt) : null;
+  if (taken) return `Taken ${taken}`;
+  const uploaded = formatTimestamp(item.createdAt);
+  return uploaded ? `Uploaded ${uploaded}` : null;
+}
+
+function formatCameraLine(exif: MediaItem['exif']): string | null {
+  if (!exif) return null;
+  const make = exif.cameraMake;
+  const model = exif.cameraModel;
+  if (!make && !model) return null;
+  // Apple camera models are already prefixed with "iPhone …" etc. — avoid
+  // stuttering "Apple iPhone 15 Pro" by skipping redundant makes.
+  if (make && model && model.toLowerCase().startsWith(make.toLowerCase())) {
+    return model;
+  }
+  return [make, model].filter(Boolean).join(' ');
+}
+
+function formatExposureLine(exif: MediaItem['exif']): string | null {
+  if (!exif) return null;
+  const parts: string[] = [];
+  if (exif.focalLengthMm) parts.push(`${Math.round(exif.focalLengthMm)}mm`);
+  if (exif.aperture) parts.push(`f/${exif.aperture.toFixed(1).replace(/\.0$/, '')}`);
+  if (exif.shutterSeconds) parts.push(formatShutter(exif.shutterSeconds));
+  if (exif.iso) parts.push(`ISO ${exif.iso}`);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+function formatShutter(seconds: number): string {
+  if (seconds >= 1) return `${seconds}s`;
+  const denom = Math.round(1 / seconds);
+  return `1/${denom}s`;
 }
 
 const styles = StyleSheet.create({

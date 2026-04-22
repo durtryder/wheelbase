@@ -1,3 +1,4 @@
+import exifr from 'exifr';
 import {
   addDoc,
   collection,
@@ -18,7 +19,7 @@ import {
 } from 'firebase/storage';
 
 import { db, storage } from '@/lib/firebase';
-import type { MediaItem } from '@/types/vehicle';
+import type { MediaExif, MediaItem } from '@/types/vehicle';
 
 const MEDIA = 'media';
 const VEHICLES = 'vehicles';
@@ -70,6 +71,61 @@ export async function uploadVehicleMedia(params: {
     throw new Error(
       `Couldn't read the selected file: ${e instanceof Error ? e.message : 'unknown'}`,
     );
+  }
+
+  // For photos, try to read EXIF so we can attach a real "taken on" date
+  // (plus camera/lens/exposure if we have it). Failures are non-fatal.
+  let takenAt: Date | undefined;
+  let exifData: MediaExif | undefined;
+  if (kind === 'photo') {
+    try {
+      const raw = await exifr.parse(blob, {
+        pick: [
+          'DateTimeOriginal',
+          'CreateDate',
+          'ModifyDate',
+          'Make',
+          'Model',
+          'LensModel',
+          'FocalLength',
+          'FNumber',
+          'ExposureTime',
+          'ISO',
+          'latitude',
+          'longitude',
+        ],
+      });
+      if (raw) {
+        const d =
+          raw.DateTimeOriginal instanceof Date
+            ? raw.DateTimeOriginal
+            : raw.CreateDate instanceof Date
+              ? raw.CreateDate
+              : raw.ModifyDate instanceof Date
+                ? raw.ModifyDate
+                : undefined;
+        if (d && !Number.isNaN(d.getTime())) takenAt = d;
+
+        const candidate: MediaExif = {
+          cameraMake: typeof raw.Make === 'string' ? raw.Make.trim() : undefined,
+          cameraModel: typeof raw.Model === 'string' ? raw.Model.trim() : undefined,
+          lensModel:
+            typeof raw.LensModel === 'string' ? raw.LensModel.trim() : undefined,
+          focalLengthMm: typeof raw.FocalLength === 'number' ? raw.FocalLength : undefined,
+          aperture: typeof raw.FNumber === 'number' ? raw.FNumber : undefined,
+          shutterSeconds:
+            typeof raw.ExposureTime === 'number' ? raw.ExposureTime : undefined,
+          iso: typeof raw.ISO === 'number' ? raw.ISO : undefined,
+          latitude: typeof raw.latitude === 'number' ? raw.latitude : undefined,
+          longitude: typeof raw.longitude === 'number' ? raw.longitude : undefined,
+        };
+        const hasAny = Object.values(candidate).some((v) => v !== undefined);
+        if (hasAny) exifData = candidate;
+        console.log('[media] EXIF parsed', { takenAt, exifData });
+      }
+    } catch (e) {
+      console.warn('[media] EXIF parse failed; proceeding without', e);
+    }
   }
 
   const defaultMime = kind === 'video' ? 'video/mp4' : 'image/jpeg';
@@ -133,6 +189,8 @@ export async function uploadVehicleMedia(params: {
       width,
       height,
       durationMs,
+      takenAt,
+      exif: exifData,
       createdAt: serverTimestamp(),
     });
     docId = docRef.id;
@@ -156,6 +214,8 @@ export async function uploadVehicleMedia(params: {
     width,
     height,
     durationMs,
+    // takenAt/exif intentionally omitted from optimistic return — the real
+    // Firestore Timestamp + round-tripped object come in via onSnapshot
   } as MediaItem;
 }
 
