@@ -14,7 +14,7 @@ import {
   deleteObject,
   getDownloadURL,
   ref as storageRef,
-  uploadBytes,
+  uploadBytesResumable,
 } from 'firebase/storage';
 
 import { db, storage } from '@/lib/firebase';
@@ -27,6 +27,10 @@ const VEHICLES = 'vehicles';
  * Upload a single photo from a local/blob URI to Firebase Storage, write a
  * MediaItem metadata row to Firestore, and return the hydrated record.
  *
+ * Uses uploadBytesResumable so we can surface progress and distinguish
+ * cleanly between Storage errors and Firestore errors. Each step is logged
+ * to the console so stalls are diagnosable from DevTools.
+ *
  * Path layout: users/{uid}/vehicles/{vehicleId}/photos/{mediaId}.{ext}
  */
 export async function uploadVehiclePhoto(params: {
@@ -35,11 +39,22 @@ export async function uploadVehiclePhoto(params: {
   uri: string;
   width?: number;
   height?: number;
+  onProgress?: (uploaded: number, total: number) => void;
 }): Promise<MediaItem> {
-  const { ownerId, vehicleId, uri, width, height } = params;
+  const { ownerId, vehicleId, uri, width, height, onProgress } = params;
 
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  console.log('[media] fetching blob from', uri);
+  let blob: Blob;
+  try {
+    const response = await fetch(uri);
+    blob = await response.blob();
+    console.log('[media] blob ready', { size: blob.size, type: blob.type });
+  } catch (e) {
+    console.error('[media] blob fetch failed', e);
+    throw new Error(
+      `Couldn't read the selected file: ${e instanceof Error ? e.message : 'unknown'}`,
+    );
+  }
 
   const mimeType = blob.type || 'image/jpeg';
   const extension = extensionFor(mimeType);
@@ -47,22 +62,73 @@ export async function uploadVehiclePhoto(params: {
   const path = `users/${ownerId}/vehicles/${vehicleId}/photos/${mediaId}.${extension}`;
 
   const objectRef = storageRef(storage, path);
-  await uploadBytes(objectRef, blob, { contentType: mimeType });
-  const downloadUrl = await getDownloadURL(objectRef);
 
-  const docRef = await addDoc(collection(db, MEDIA), {
-    vehicleId,
-    ownerId,
-    kind: 'photo',
-    storagePath: path,
-    downloadUrl,
-    width,
-    height,
-    createdAt: serverTimestamp(),
+  console.log('[media] starting upload to', path);
+  const task = uploadBytesResumable(objectRef, blob, { contentType: mimeType });
+
+  await new Promise<void>((resolve, reject) => {
+    task.on(
+      'state_changed',
+      (snapshot) => {
+        console.log(
+          '[media] progress',
+          snapshot.bytesTransferred,
+          '/',
+          snapshot.totalBytes,
+        );
+        onProgress?.(snapshot.bytesTransferred, snapshot.totalBytes);
+      },
+      (error) => {
+        console.error('[media] storage upload failed', error.code, error.message, error);
+        reject(
+          new Error(
+            `Storage upload failed (${error.code || 'unknown'}): ${error.message}`,
+          ),
+        );
+      },
+      () => {
+        console.log('[media] upload complete');
+        resolve();
+      },
+    );
   });
 
+  let downloadUrl: string;
+  try {
+    downloadUrl = await getDownloadURL(objectRef);
+    console.log('[media] got download URL');
+  } catch (e) {
+    console.error('[media] getDownloadURL failed', e);
+    throw new Error(
+      `Couldn't get download URL: ${e instanceof Error ? e.message : 'unknown'}`,
+    );
+  }
+
+  let docId: string;
+  try {
+    const docRef = await addDoc(collection(db, MEDIA), {
+      vehicleId,
+      ownerId,
+      kind: 'photo',
+      storagePath: path,
+      downloadUrl,
+      width,
+      height,
+      createdAt: serverTimestamp(),
+    });
+    docId = docRef.id;
+    console.log('[media] MediaItem saved', docId);
+  } catch (e) {
+    console.error('[media] addDoc failed', e);
+    throw new Error(
+      `Saved the photo to storage but couldn't write metadata: ${
+        e instanceof Error ? e.message : 'unknown'
+      }`,
+    );
+  }
+
   return {
-    id: docRef.id,
+    id: docId,
     vehicleId,
     ownerId,
     kind: 'photo',
@@ -97,8 +163,6 @@ export async function deleteMediaItem(item: MediaItem): Promise<void> {
   try {
     await deleteObject(storageRef(storage, item.storagePath));
   } catch (e) {
-    // Storage object may have already been deleted; keep going so the
-    // orphaned metadata doesn't get stuck.
     console.warn('[media] storage object delete failed:', e);
   }
   await deleteDoc(doc(db, MEDIA, item.id));

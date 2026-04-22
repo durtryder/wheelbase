@@ -35,6 +35,12 @@ export default function VehicleDetailScreen() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    uploaded: number;
+    totalBytes: number;
+  } | null>(null);
   const [photoActionBusy, setPhotoActionBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -111,13 +117,18 @@ export default function VehicleDetailScreen() {
 
       setUploading(true);
       let firstMediaId: string | null = null;
-      for (const asset of result.assets) {
+      const total = result.assets.length;
+      for (let i = 0; i < result.assets.length; i++) {
+        const asset = result.assets[i];
+        setUploadProgress({ current: i + 1, total, uploaded: 0, totalBytes: 0 });
         const item = await uploadVehiclePhoto({
           ownerId: user.uid,
           vehicleId: id,
           uri: asset.uri,
           width: asset.width,
           height: asset.height,
+          onProgress: (uploaded, totalBytes) =>
+            setUploadProgress({ current: i + 1, total, uploaded, totalBytes }),
         });
         if (!firstMediaId) firstMediaId = item.id;
       }
@@ -128,9 +139,11 @@ export default function VehicleDetailScreen() {
         setVehicle({ ...vehicle, coverPhotoId: firstMediaId });
       }
     } catch (e) {
+      console.error('[detail] upload flow failed', e);
       setMediaError(e instanceof Error ? e.message : 'Upload failed.');
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -344,6 +357,17 @@ export default function VehicleDetailScreen() {
             <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
           </View>
 
+          {uploadProgress ? (
+            <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+              Uploading {uploadProgress.current} of {uploadProgress.total}
+              {uploadProgress.totalBytes > 0
+                ? ` · ${formatBytes(uploadProgress.uploaded)} / ${formatBytes(
+                    uploadProgress.totalBytes,
+                  )}`
+                : ''}
+            </ThemedText>
+          ) : null}
+
           {mediaError ? (
             <ThemedText type="metadata" style={{ color: palette.tint }}>
               {mediaError}
@@ -498,6 +522,12 @@ function formatTransmission(style: string | undefined, speeds: number | undefine
 function formatPlant(city?: string, state?: string, country?: string) {
   const parts = [city, state, country].filter(Boolean);
   return parts.length ? parts.join(', ') : undefined;
+}
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function sourceName(source: OemSpecs['source']) {
