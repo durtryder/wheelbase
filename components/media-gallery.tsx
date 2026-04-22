@@ -25,7 +25,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MediaItem, Vehicle } from '@/types/vehicle';
 
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   durationText: {
     color: '#fff',
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: Fonts.sans.semibold,
     letterSpacing: 0.5,
   },
   coverBadge: {
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
   coverBadgeText: {
     color: '#1a1a1a',
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: Fonts.sans.bold,
     letterSpacing: 1.2,
   },
   hoverOverlay: {
@@ -683,6 +683,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     lineHeight: 16,
+    fontFamily: Fonts.sans.regular,
   },
 });
 
@@ -708,7 +709,7 @@ const lightboxStyles = StyleSheet.create({
   counterText: {
     color: '#bbb5a6',
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.sans.semibold,
     letterSpacing: 1.4,
   },
   closeButton: {
@@ -721,7 +722,7 @@ const lightboxStyles = StyleSheet.create({
   closeButtonText: {
     color: '#f4e4bc',
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.sans.bold,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
@@ -739,7 +740,7 @@ const lightboxStyles = StyleSheet.create({
   navText: {
     color: '#f4e4bc',
     fontSize: 48,
-    fontWeight: '400',
+    fontFamily: Fonts.sans.regular,
     lineHeight: 48,
   },
   captionWrap: {
@@ -757,17 +758,20 @@ const lightboxStyles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 640,
     lineHeight: 22,
+    fontFamily: Fonts.sans.regular,
   },
   captionPlaceholder: {
     color: '#8b867a',
     fontSize: 14,
     fontStyle: 'italic',
+    fontFamily: Fonts.sans.regular,
   },
   metadata: {
     color: '#8b867a',
     fontSize: 12,
     letterSpacing: 0.8,
     textAlign: 'center',
+    fontFamily: Fonts.sans.regular,
   },
   captionEditor: {
     width: '100%',
@@ -786,6 +790,7 @@ const lightboxStyles = StyleSheet.create({
     lineHeight: 20,
     minHeight: 80,
     textAlignVertical: 'top',
+    fontFamily: Fonts.sans.regular,
   },
   captionActions: {
     flexDirection: 'row',
@@ -812,7 +817,7 @@ const lightboxStyles = StyleSheet.create({
   actionButtonText: {
     color: '#bbb5a6',
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.sans.semibold,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },

@@ -1,4 +1,9 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  type TextProps,
+  type TextStyle,
+} from 'react-native';
 
 import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -16,36 +21,7 @@ export type ThemedTextProps = TextProps & {
     | 'metadata';
 };
 
-export function ThemedText({
-  style,
-  lightColor,
-  darkColor,
-  type = 'default',
-  ...rest
-}: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
-
-  return (
-    <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        type === 'eyebrow' ? styles.eyebrow : undefined,
-        type === 'metadata' ? styles.metadata : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
-}
-
-// Each weighted family ships as its own font name via @expo-google-fonts —
-// so we don't use fontWeight, we pick the family that represents the weight.
-const styles = StyleSheet.create({
+const TYPE_STYLES: Record<NonNullable<ThemedTextProps['type']>, TextStyle> = {
   default: {
     fontSize: 16,
     lineHeight: 24,
@@ -58,16 +34,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 34,
-    lineHeight: 38,
-    fontFamily: Fonts.serif,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    lineHeight: 40,
+    letterSpacing: -0.4,
+    fontFamily: Fonts.sans.bold,
   },
   subtitle: {
     fontSize: 22,
     lineHeight: 28,
-    fontFamily: Fonts.serif,
-    fontWeight: '700',
+    letterSpacing: -0.2,
+    fontFamily: Fonts.sans.bold,
   },
   eyebrow: {
     fontSize: 11,
@@ -78,13 +53,66 @@ const styles = StyleSheet.create({
   metadata: {
     fontSize: 13,
     lineHeight: 18,
-    fontFamily: Fonts.sans.regular,
     letterSpacing: 0.2,
+    fontFamily: Fonts.sans.regular,
   },
   link: {
     fontSize: 16,
     lineHeight: 30,
-    fontFamily: Fonts.sans.medium,
     color: '#0a7ea4',
+    fontFamily: Fonts.sans.medium,
   },
-});
+};
+
+export function ThemedText({
+  style,
+  lightColor,
+  darkColor,
+  type = 'default',
+  ...rest
+}: ThemedTextProps) {
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+
+  const base = TYPE_STYLES[type];
+  const userOverride = (StyleSheet.flatten(style) ?? {}) as TextStyle;
+
+  // Resolve the Manrope weight family based on any explicit fontWeight the
+  // caller passed in `style`. This lets existing call sites that use
+  // `fontWeight: '600'` continue to bolden without knowing about Manrope's
+  // per-weight family names.
+  const resolved: TextStyle = { ...base, ...userOverride };
+  const userWeight = userOverride.fontWeight;
+  if (userWeight && isSansFamily(resolved.fontFamily)) {
+    resolved.fontFamily = manropeForWeight(userWeight);
+  }
+
+  return <Text style={[{ color }, resolved]} {...rest} />;
+}
+
+function isSansFamily(family: string | undefined): boolean {
+  if (!family) return false;
+  return family.startsWith('Manrope_');
+}
+
+function manropeForWeight(weight: TextStyle['fontWeight']): string {
+  switch (weight) {
+    case '100':
+    case '200':
+    case '300':
+    case '400':
+    case 'normal':
+    case undefined:
+      return Fonts.sans.regular;
+    case '500':
+      return Fonts.sans.medium;
+    case '600':
+      return Fonts.sans.semibold;
+    case '700':
+    case '800':
+    case '900':
+    case 'bold':
+      return Fonts.sans.bold;
+    default:
+      return Fonts.sans.regular;
+  }
+}
