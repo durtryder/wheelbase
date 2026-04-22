@@ -26,6 +26,7 @@ export const Colors = {
   light: {
     text: wheelbaseInk,
     textMuted: wheelbaseInkMuted,
+    placeholder: '#c9c5ba',
     background: wheelbaseCream,
     surface: '#ffffff',
     surfaceDim: wheelbaseCreamDim,
@@ -41,6 +42,7 @@ export const Colors = {
   dark: {
     text: '#f4e4bc',
     textMuted: '#9a958a',
+    placeholder: '#4a4740',
     background: darkBg,
     surface: darkSurface,
     surfaceDim: '#121212',

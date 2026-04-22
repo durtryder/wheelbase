@@ -27,41 +27,30 @@ export default function GarageScreen() {
               backgroundColor: palette.surface,
             },
           ]}>
-          <View style={[styles.cardHero, { backgroundColor: palette.surfaceDim }]}>
-            <ThemedText
-              type="eyebrow"
-              style={{ color: palette.textMuted, letterSpacing: 2 }}>
-              Photo
-            </ThemedText>
-          </View>
+          <ThemedText type="subtitle">No vehicles yet.</ThemedText>
+          <ThemedText
+            type="default"
+            style={{ color: palette.textMuted, marginTop: 6 }}>
+            Add a vehicle to begin documenting its specs, customizations, and
+            history.
+          </ThemedText>
 
-          <View style={styles.cardBody}>
-            <ThemedText type="eyebrow" style={{ color: palette.tint }}>
-              No vehicles yet
-            </ThemedText>
-            <ThemedText type="subtitle">Start your garage.</ThemedText>
-            <ThemedText
-              type="default"
-              style={{ color: palette.textMuted, marginTop: 4 }}>
-              Add a vehicle to pull its OEM specs from NHTSA and begin
-              documenting customizations, service, and provenance.
-            </ThemedText>
-
-            <View style={[styles.hairline, { backgroundColor: palette.border }]} />
-
-            <View style={styles.metaRow}>
-              <MetaItem label="Vehicles" value="0" palette={palette} />
-              <Divider color={palette.border} />
-              <MetaItem label="Photos" value="0" palette={palette} />
-              <Divider color={palette.border} />
-              <MetaItem label="Modifications" value="0" palette={palette} />
-            </View>
-
+          <View style={styles.buttonRow}>
             <Pressable
               onPress={() => router.push('/vehicles/new')}
               style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
               <ThemedText style={styles.primaryButtonText}>Add a vehicle</ThemedText>
             </Pressable>
+          </View>
+
+          <View style={[styles.hairline, { backgroundColor: palette.border }]} />
+
+          <View style={styles.metaRow}>
+            <MetaItem label="Vehicles" value="0" palette={palette} />
+            <Divider color={palette.border} />
+            <MetaItem label="Photos" value="0" palette={palette} />
+            <Divider color={palette.border} />
+            <MetaItem label="Modifications" value="0" palette={palette} />
           </View>
         </ThemedView>
       </ScrollView>
@@ -116,22 +105,28 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderRadius: 4,
-    overflow: 'hidden',
+    borderRadius: 8,
+    padding: 28,
   },
-  cardHero: {
-    aspectRatio: 16 / 9,
-    alignItems: 'center',
-    justifyContent: 'center',
+  buttonRow: {
+    flexDirection: 'row',
+    marginTop: 18,
   },
-  cardBody: {
-    padding: 24,
-    gap: 6,
+  primaryButton: {
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 6,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   hairline: {
     height: 1,
     width: '100%',
-    marginVertical: 18,
+    marginTop: 26,
+    marginBottom: 20,
   },
   metaRow: {
     flexDirection: 'row',
@@ -146,19 +141,5 @@ const styles = StyleSheet.create({
     width: 1,
     alignSelf: 'stretch',
     marginHorizontal: 16,
-  },
-  primaryButton: {
-    marginTop: 22,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 2,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
 });

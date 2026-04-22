@@ -4,10 +4,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 const LOGO = require('@/assets/images/logo.png');
 
-const NAV_BG = '#0b0b0b';
-const NAV_BORDER = '#2a2a2a';
-const NAV_TEXT = '#bbb5a6';
-const NAV_TEXT_ACTIVE = '#f4e4bc';
+const NAV_BG = '#f6f1e8';
+const NAV_BORDER = '#d6cfbf';
+const NAV_TEXT = '#1a1a1a';
 const NAV_ACCENT = '#c9a24a';
 
 const LINKS = [
@@ -43,7 +42,7 @@ export function TopNav() {
                 accessibilityRole="link"
                 style={isActive ? styles.linkActive : styles.link}>
                 <Text style={isActive ? styles.linkTextActive : styles.linkText}>
-                  {link.label.toUpperCase()}
+                  {link.label}
                 </Text>
               </Pressable>
             );
@@ -65,7 +64,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingVertical: 8,
+    paddingVertical: 10,
     maxWidth: 1200,
     width: '100%',
     alignSelf: 'center',
@@ -73,46 +72,44 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 14,
   },
   logo: {
-    width: 44,
-    height: 44,
+    width: 88,
+    height: 88,
   },
   wordmark: {
-    color: NAV_TEXT_ACTIVE,
-    fontSize: 16,
+    color: NAV_TEXT,
+    fontSize: 20,
     fontWeight: '700',
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   links: {
     flexDirection: 'row',
     alignItems: 'stretch',
   },
   link: {
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
     justifyContent: 'center',
   },
   linkActive: {
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     borderBottomWidth: 2,
     borderBottomColor: NAV_ACCENT,
     justifyContent: 'center',
   },
   linkText: {
     color: NAV_TEXT,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
+    fontSize: 15,
+    fontWeight: '500',
   },
   linkTextActive: {
-    color: NAV_TEXT_ACTIVE,
-    fontSize: 11,
+    color: NAV_TEXT,
+    fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 1.4,
   },
 });

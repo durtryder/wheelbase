@@ -20,7 +20,7 @@ export function FormField({ label, hint, required, ...rest }: Props) {
         {required ? ' *' : ''}
       </Text>
       <TextInput
-        placeholderTextColor={palette.textMuted}
+        placeholderTextColor={palette.placeholder}
         style={[
           styles.input,
           {
