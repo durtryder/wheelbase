@@ -180,7 +180,7 @@ export type ModCategory =
   | 'other';
 
 export type OemSpecs = {
-  source: 'vpic' | 'manual' | 'other';
+  source: 'vpic' | 'wikidata' | 'carquery' | 'manual' | 'other';
   fetchedAt?: Timestamp;
   // Common normalized fields (mirrors vPIC variables we surface in the UI)
   make?: string;

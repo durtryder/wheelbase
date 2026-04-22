@@ -8,8 +8,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { fetchOemSpecs } from '@/services/oem-lookup';
 import { createVehicle } from '@/services/vehicles';
-import { decodeVin } from '@/services/vpic';
 import type { OemSpecs, Vehicle } from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
@@ -54,65 +54,71 @@ export default function VehicleBuilderScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleDecode() {
-    const trimmed = vin.trim();
-    if (!trimmed) {
-      setDecodeNote({ kind: 'error', text: 'Enter a VIN first.' });
+    const vinTrimmed = vin.trim();
+    const yr = parseIntOrUndefined(year);
+    const hasIdentity = !!yr && !!make.trim() && !!model.trim();
+
+    if (!vinTrimmed && !hasIdentity) {
+      setDecodeNote({
+        kind: 'error',
+        text: 'Enter a VIN, or fill in year / make / model above, before looking up specs.',
+      });
       return;
     }
+
     setDecoding(true);
     setDecodeNote(null);
     try {
-      const { fields, error } = await decodeVin(trimmed);
-
-      if (error) {
-        const looksPre1981 = trimmed.length !== 17;
-        const text = looksPre1981
-          ? "NHTSA's vPIC database only covers standardized 17-character VINs from 1981 onward. Pre-1981 vehicles (vintage Porsches, classic Fords, etc.) aren't available — enter the details manually above."
-          : `NHTSA couldn't decode this VIN: ${error.text || `error ${error.code}`}. Double-check the VIN, or enter details manually above.`;
-        setDecodeNote({ kind: 'error', text });
-        setOemSpecs(null);
-        return;
-      }
-
-      const specs: OemSpecs = {
-        source: 'vpic',
-        make: fields['Make'],
-        model: fields['Model'],
-        modelYear: parseIntOrUndefined(fields['Model Year'] ?? ''),
-        trim: fields['Trim'],
-        series: fields['Series'],
-        bodyClass: fields['Body Class'],
-        doors: parseIntOrUndefined(fields['Doors'] ?? ''),
-        engineCylinders: parseIntOrUndefined(fields['Engine Number of Cylinders'] ?? ''),
-        displacementCc: parseFloatOrUndefined(fields['Displacement (CC)'] ?? ''),
-        displacementCi: parseFloatOrUndefined(fields['Displacement (CI)'] ?? ''),
-        fuelType: fields['Fuel Type - Primary'],
-        driveType: fields['Drive Type'],
-        transmissionStyle: fields['Transmission Style'],
-        transmissionSpeeds: parseIntOrUndefined(fields['Transmission Speeds'] ?? ''),
-        plantCity: fields['Plant City'],
-        plantState: fields['Plant State'],
-        plantCountry: fields['Plant Country'],
-        manufacturer: fields['Manufacturer Name'],
-        vehicleType: fields['Vehicle Type'],
-        raw: fields,
-      };
-      setOemSpecs(specs);
-
-      const decoded = [fields['Model Year'], fields['Make'], fields['Model']].filter(Boolean).join(' ');
-      setDecodeNote({
-        kind: 'ok',
-        text: decoded
-          ? `Decoded: ${decoded}. Specifications populated below.`
-          : 'VIN accepted, but NHTSA returned no useful fields.',
+      const result = await fetchOemSpecs({
+        vin: vinTrimmed || undefined,
+        year: yr,
+        make: make.trim() || undefined,
+        model: model.trim() || undefined,
       });
+
+      if (result.ok) {
+        setOemSpecs(result.specs);
+        setDecodeNote({
+          kind: 'ok',
+          text: `Specifications loaded from ${sourceName(result.source)}.`,
+        });
+      } else {
+        setOemSpecs(null);
+        const looksPre1981 = vinTrimmed && vinTrimmed.length !== 17;
+        const preface = looksPre1981
+          ? "NHTSA only covers standardized 17-character VINs from 1981 onward. We then tried other sources:"
+          : 'No sources had spec data for this vehicle:';
+        const body =
+          result.errors.length > 0
+            ? result.errors.map((e) => `\u2022 ${e}`).join('\n')
+            : 'No lookups were attempted.';
+        setDecodeNote({
+          kind: 'error',
+          text: `${preface}\n${body}\n\nEnter the specs manually above.`,
+        });
+      }
     } catch (e) {
       setDecodeNote({
         kind: 'error',
-        text: e instanceof Error ? e.message : 'Failed to reach NHTSA.',
+        text: e instanceof Error ? e.message : 'Failed to reach any spec source.',
       });
     } finally {
       setDecoding(false);
+    }
+  }
+
+  function sourceName(source: OemSpecs['source']) {
+    switch (source) {
+      case 'vpic':
+        return 'NHTSA vPIC';
+      case 'wikidata':
+        return 'Wikidata';
+      case 'carquery':
+        return 'CarQuery';
+      case 'manual':
+        return 'manual entry';
+      default:
+        return 'an external source';
     }
   }
 
@@ -299,8 +305,8 @@ export default function VehicleBuilderScreen() {
 
         <Section title="OEM Specifications" palette={palette}>
           <ThemedText type="metadata" style={{ color: palette.textMuted }}>
-            Enter a VIN to pull factory specifications from NHTSA&apos;s vPIC database (17-character
-            VINs, 1981 onward).
+            Enter a VIN, or fill in year / make / model above, then look up specs. We try NHTSA
+            vPIC first (17-char VINs, 1981+), then Wikidata, then CarQuery.
           </ThemedText>
           <FormField
             label="VIN"
@@ -308,7 +314,7 @@ export default function VehicleBuilderScreen() {
             onChangeText={setVin}
             autoCapitalize="characters"
             autoCorrect={false}
-            placeholder="17-character VIN"
+            placeholder="17-character VIN (optional for pre-1981 vehicles)"
           />
           <View style={styles.rowEnd}>
             <Pressable
@@ -322,7 +328,7 @@ export default function VehicleBuilderScreen() {
                 <ActivityIndicator color={palette.tint} />
               ) : (
                 <ThemedText style={[styles.secondaryButtonText, { color: palette.tint }]}>
-                  Decode VIN
+                  Look up specifications
                 </ThemedText>
               )}
             </Pressable>
