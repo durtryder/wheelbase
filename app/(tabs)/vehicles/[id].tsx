@@ -439,21 +439,28 @@ export default function VehicleDetailScreen() {
             </ThemedText>
           </Pressable>
           {isOwner ? (
-            <Pressable
-              onPress={handleDelete}
-              disabled={deleting}
-              style={[
-                styles.dangerButton,
-                { borderColor: palette.tint, opacity: deleting ? 0.6 : 1 },
-              ]}>
-              {deleting ? (
-                <ActivityIndicator color={palette.tint} />
-              ) : (
-                <ThemedText style={[styles.dangerButtonText, { color: palette.tint }]}>
-                  Delete vehicle
-                </ThemedText>
-              )}
-            </Pressable>
+            <View style={styles.ownerActions}>
+              <Pressable
+                onPress={() => router.push(`/vehicles/edit/${v.id}`)}
+                style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
+                <ThemedText style={styles.primaryButtonText}>Edit vehicle</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                disabled={deleting}
+                style={[
+                  styles.dangerButton,
+                  { borderColor: palette.tint, opacity: deleting ? 0.6 : 1 },
+                ]}>
+                {deleting ? (
+                  <ActivityIndicator color={palette.tint} />
+                ) : (
+                  <ThemedText style={[styles.dangerButtonText, { color: palette.tint }]}>
+                    Delete vehicle
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
           ) : null}
         </View>
       </ScrollView>
@@ -670,6 +677,13 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'space-between',
     marginTop: 8,
+  },
+  ownerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   ghostButton: {
     borderWidth: 1,
