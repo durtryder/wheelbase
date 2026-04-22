@@ -131,6 +131,14 @@ export default function VehicleDetailScreen() {
             setUploadProgress({ current: i + 1, total, uploaded, totalBytes }),
         });
         if (!firstMediaId) firstMediaId = item.id;
+
+        // Optimistically insert into the gallery so the user sees it
+        // immediately. When onSnapshot catches up it replaces the whole
+        // array with the authoritative list — which contains the same
+        // item — so there's no duplicate or flicker.
+        setMedia((prev) =>
+          prev.some((m) => m.id === item.id) ? prev : [...prev, item],
+        );
       }
 
       // If the vehicle doesn't have a cover photo yet, promote the first upload.
