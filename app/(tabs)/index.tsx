@@ -22,6 +22,15 @@ export default function GarageScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // If the viewer is signed out, skip the Garage entirely and send them
+  // straight to /sign-in. (The access gate has already let them past the
+  // preview wall by this point.)
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/sign-in');
+    }
+  }, [authLoading, user, router]);
+
   useEffect(() => {
     if (!user) {
       setVehicles(null);
@@ -46,12 +55,13 @@ export default function GarageScreen() {
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
         </View>
 
-        {authLoading ? (
+        {authLoading || !user ? (
+          // authLoading: we don't know yet. no user: redirect effect above is
+          // about to send them to /sign-in. Either way, render a spinner so
+          // the "Your vehicles..." card is never flashed at signed-out users.
           <Centered>
             <ActivityIndicator color={palette.tint} />
           </Centered>
-        ) : !user ? (
-          <SignedOutEmpty palette={palette} onSignIn={() => router.push('/sign-in')} />
         ) : error ? (
           <ErrorState palette={palette} message={error} />
         ) : vehicles === null ? (
@@ -95,26 +105,6 @@ function computeTotals(vehicles: Vehicle[] | null) {
       0,
     ),
   };
-}
-
-function SignedOutEmpty({ palette, onSignIn }: { palette: Palette; onSignIn: () => void }) {
-  return (
-    <ThemedView
-      style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-      <ThemedText type="subtitle">Sign in to see your garage.</ThemedText>
-      <ThemedText type="default" style={{ color: palette.textMuted, marginTop: 6 }}>
-        Your vehicles, customizations, and history live on your account — create one in a
-        minute to start building.
-      </ThemedText>
-      <View style={styles.buttonRow}>
-        <Pressable
-          onPress={onSignIn}
-          style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-          <ThemedText style={styles.primaryButtonText}>Sign in</ThemedText>
-        </Pressable>
-      </View>
-    </ThemedView>
-  );
 }
 
 function EmptyGarage({ palette, onAdd }: { palette: Palette; onAdd: () => void }) {
