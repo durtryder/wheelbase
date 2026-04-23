@@ -51,3 +51,6 @@ app-example
 .claude/
 .agents/
 skills-lock.json
+
+# Hosting artifacts (ad-hoc zips for manual uploads, etc.)
+*.zip
