@@ -38,12 +38,12 @@ export default function FeedScreen() {
           </ThemedText>
         </View>
 
-        {vehicles === null ? (
+        {error ? (
+          <ErrorCard palette={palette} message={error} />
+        ) : vehicles === null ? (
           <View style={styles.centered}>
             <ActivityIndicator color={palette.tint} />
           </View>
-        ) : error ? (
-          <ErrorCard palette={palette} message={error} />
         ) : vehicles.length === 0 ? (
           <EmptyFeed palette={palette} />
         ) : (
