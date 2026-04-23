@@ -90,7 +90,11 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           publish_branch: deploy
-          force_orphan: true
+          # force_orphan intentionally left OFF — Hostinger's Git integration
+          # uses `git pull`, which fails on divergent branches. Orphan pushes
+          # rewrite the whole branch history on every build, so Hostinger's
+          # local clone sees a "no common ancestor" divergence and refuses to
+          # pull. Stacking commits on top lets Hostinger fast-forward cleanly.
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy build from ${{ github.sha }}'
