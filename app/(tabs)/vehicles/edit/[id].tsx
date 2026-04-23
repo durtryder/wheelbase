@@ -57,6 +57,9 @@ export default function EditVehicleScreen() {
       exteriorColor: value.exteriorColor,
       interiorColor: value.interiorColor,
       location: value.location,
+      builder: value.builder,
+      modifications: value.modifications ?? [],
+      ownershipHistory: value.ownershipHistory,
       oemSpecs: value.oemSpecs,
     };
 
@@ -147,6 +150,9 @@ export default function EditVehicleScreen() {
         exteriorColor: v.exteriorColor,
         interiorColor: v.interiorColor,
         location: v.location,
+        builder: v.builder,
+        modifications: v.modifications,
+        ownershipHistory: v.ownershipHistory,
         oemSpecs: v.oemSpecs,
       }}
       onSubmit={handleSubmit}

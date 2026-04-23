@@ -19,7 +19,13 @@ import {
   watchMediaForVehicle,
 } from '@/services/media';
 import { deleteVehicle, getVehicle } from '@/services/vehicles';
-import type { MediaItem, OemSpecs, Vehicle } from '@/types/vehicle';
+import type {
+  MediaItem,
+  Modification,
+  OemSpecs,
+  OwnershipEntry,
+  Vehicle,
+} from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
 
@@ -320,7 +326,7 @@ export default function VehicleDetailScreen() {
           />
         </View>
 
-        <Section title="Vehicle Details" palette={palette}>
+        <Section title="Vehicle Overview" palette={palette}>
           <DetailRow label="Year" value={String(v.year)} palette={palette} />
           <DetailRow label="Make" value={v.make} palette={palette} />
           <DetailRow label="Model" value={v.model} palette={palette} />
@@ -333,6 +339,8 @@ export default function VehicleDetailScreen() {
             <DetailRow label="Title Status" value={v.titleStatus} palette={palette} />
           ) : null}
         </Section>
+
+        <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
 
         {v.oemSpecs ? (
           <Section title={`OEM Specifications (${sourceName(v.oemSpecs.source)})`} palette={palette}>
@@ -606,6 +614,195 @@ function sourceName(source: OemSpecs['source']) {
   }
 }
 
+// ---------- Vehicle Details (read view) ----------
+
+function VehicleDetailsSection({
+  vehicle,
+  palette,
+  isOwner,
+}: {
+  vehicle: Vehicle;
+  palette: Palette;
+  isOwner: boolean;
+}) {
+  const builder = vehicle.builder;
+  const mods = vehicle.modifications ?? [];
+  const owners = vehicle.ownershipHistory ?? [];
+
+  const hasAnything =
+    !!builder?.name ||
+    !!builder?.location ||
+    !!builder?.notes ||
+    mods.length > 0 ||
+    owners.length > 0;
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <ThemedText type="subtitle">Vehicle Details</ThemedText>
+        <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+      </View>
+
+      {!hasAnything ? (
+        <ThemedText type="metadata" style={{ color: palette.placeholder }}>
+          {isOwner
+            ? 'Add builder, modifications, and ownership history from the Edit vehicle page.'
+            : 'No build details have been added yet.'}
+        </ThemedText>
+      ) : null}
+
+      {builder && (builder.name || builder.location || builder.notes) ? (
+        <View style={styles.subSection}>
+          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+            Builder
+          </ThemedText>
+          <View style={[styles.detailTable, { borderColor: palette.border, marginTop: 8 }]}>
+            <DetailRow label="Builder" value={builder.name} palette={palette} />
+            <DetailRow label="Location" value={builder.location} palette={palette} />
+            <DetailRow
+              label="Build Date"
+              value={formatDate(builder.date)}
+              palette={palette}
+            />
+            <DetailRow label="Notes" value={builder.notes} palette={palette} />
+          </View>
+        </View>
+      ) : null}
+
+      {mods.length > 0 ? (
+        <View style={styles.subSection}>
+          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+            Modifications
+          </ThemedText>
+          <View style={styles.buildCards}>
+            {mods.map((m) => (
+              <ModificationCard key={m.id} mod={m} palette={palette} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {owners.length > 0 ? (
+        <View style={styles.subSection}>
+          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+            Ownership History
+          </ThemedText>
+          <View style={styles.buildCards}>
+            {owners.map((o) => (
+              <OwnershipCard key={o.id} entry={o} palette={palette} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ModificationCard({ mod, palette }: { mod: Modification; palette: Palette }) {
+  const date = formatDate(mod.installedAt);
+  const mileage = mod.mileageAtInstall != null ? `${mod.mileageAtInstall.toLocaleString()} mi` : null;
+  const cost = mod.cost != null ? `$${mod.cost.toLocaleString()}` : null;
+  const subline = [date, mileage, cost, mod.vendor].filter(Boolean).join('  ·  ');
+
+  return (
+    <View style={[styles.buildCard, { borderColor: palette.border }]}>
+      <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+        {formatCategory(mod.category)}
+      </ThemedText>
+      <ThemedText type="defaultSemiBold" style={{ marginTop: 2 }}>
+        {mod.title || '(untitled modification)'}
+      </ThemedText>
+      {mod.description ? (
+        <ThemedText type="default" style={{ color: palette.textMuted, marginTop: 4 }}>
+          {mod.description}
+        </ThemedText>
+      ) : null}
+      {subline ? (
+        <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 8 }}>
+          {subline}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
+function OwnershipCard({
+  entry,
+  palette,
+}: {
+  entry: OwnershipEntry;
+  palette: Palette;
+}) {
+  const acquired = formatDate(entry.acquiredAt);
+  const relinquished = formatDate(entry.relinquishedAt);
+  const span =
+    acquired && relinquished
+      ? `${acquired} – ${relinquished}`
+      : acquired
+        ? `Acquired ${acquired}`
+        : relinquished
+          ? `Relinquished ${relinquished}`
+          : null;
+  const loc = formatLocation(entry.location);
+  const subline = [span, loc].filter(Boolean).join('  ·  ');
+
+  return (
+    <View style={[styles.buildCard, { borderColor: palette.border }]}>
+      <ThemedText type="defaultSemiBold">
+        {entry.ownerName || '(Unnamed owner)'}
+      </ThemedText>
+      {subline ? (
+        <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 6 }}>
+          {subline}
+        </ThemedText>
+      ) : null}
+      {entry.notes ? (
+        <ThemedText type="default" style={{ color: palette.textMuted, marginTop: 6 }}>
+          {entry.notes}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
+function formatDate(ts: Modification['installedAt']): string | undefined {
+  if (!ts) return undefined;
+  try {
+    const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts as unknown as Date);
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return undefined;
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function formatCategory(c: Modification['category']): string {
+  switch (c) {
+    case 'engine':
+      return 'Engine';
+    case 'drivetrain':
+      return 'Drivetrain';
+    case 'suspension':
+      return 'Suspension';
+    case 'brakes':
+      return 'Brakes';
+    case 'wheels-tires':
+      return 'Wheels & Tires';
+    case 'exterior':
+      return 'Exterior';
+    case 'interior':
+      return 'Interior';
+    case 'audio-electronics':
+      return 'Audio / Electronics';
+    default:
+      return 'Other';
+  }
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
@@ -679,6 +876,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     overflow: 'hidden',
+  },
+  subSection: {
+    marginTop: 18,
+    gap: 8,
+  },
+  buildCards: {
+    gap: 10,
+    marginTop: 6,
+  },
+  buildCard: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 16,
   },
   detailRow: {
     flexDirection: 'row',

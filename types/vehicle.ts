@@ -43,6 +43,7 @@ export type Vehicle = {
   serviceHistory?: HistoryEntry[];
   ownershipHistory?: OwnershipEntry[];
   includedItems?: string[];
+  builder?: BuilderInfo;
   // Actual uploaded documents (PDFs, scans) live in the /documents collection
   // and are joined on vehicleId at query time.
 
@@ -128,6 +129,17 @@ export type HistoryEntry = {
   cost?: number;
   vendor?: string;
   mediaIds?: string[];
+};
+
+export type BuilderInfo = {
+  /** Name of the builder / shop (e.g., "Singer Vehicle Design"). */
+  name?: string;
+  /** City / state / country of the build. */
+  location?: string;
+  /** Date the build completed (or was delivered). */
+  date?: Timestamp;
+  /** Free-form notes about the build, scope, etc. */
+  notes?: string;
 };
 
 export type OwnershipEntry = {
