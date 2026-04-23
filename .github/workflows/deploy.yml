@@ -16,6 +16,13 @@ concurrency:
   group: deploy-branch
   cancel-in-progress: true
 
+# peaceiris/actions-gh-pages needs write access to push to the deploy branch.
+# Default repo token is read-only on many accounts, which throws
+# `fatal: unable to access ... The requested URL returned error: 403`
+# a.k.a. "git failed with exit code 128" at the push step.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
