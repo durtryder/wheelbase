@@ -1,8 +1,8 @@
-name: Build & publish to deploy branch
+name: Build & deploy to Hostinger
 
-# Every push to main rebuilds the web bundle and pushes it to the `deploy`
-# branch as an orphan commit. Hostinger's Git integration points at that
-# branch — the site operator clicks "Deploy" in hPanel to push live.
+# Every push to main rebuilds the web bundle and SFTPs it straight into
+# Hostinger's public_html. No deploy branch, no Hostinger Git integration,
+# no hPanel clicks.
 #
 # Also supports manual trigger via the Actions tab (workflow_dispatch).
 
@@ -11,20 +11,13 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-# Prevent overlapping builds from producing a messy deploy-branch history.
+# Let deploys queue up rather than cancel — each push to main should ship.
 concurrency:
-  group: deploy-branch
-  cancel-in-progress: true
-
-# peaceiris/actions-gh-pages needs write access to push to the deploy branch.
-# Default repo token is read-only on many accounts, which throws
-# `fatal: unable to access ... The requested URL returned error: 403`
-# a.k.a. "git failed with exit code 128" at the push step.
-permissions:
-  contents: write
+  group: hostinger-deploy
+  cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -40,9 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Fails fast if any required secret is missing / empty. Length is not
-      # logged — only a pass/fail per variable — to avoid leaking any value.
-      - name: Verify secrets are present
+      # Fails fast if any required build secret is missing / empty. Only the
+      # name gets logged on success/failure — nothing leaks.
+      - name: Verify build secrets are present
         env:
           API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
           AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
@@ -65,12 +58,26 @@ jobs:
           done
           if [ "$fail" = "1" ]; then exit 1; fi
 
+      - name: Verify Hostinger FTP secrets are present
+        env:
+          FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+        run: |
+          fail=0
+          for name in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
+            val=$(printenv "$name" || true)
+            if [ -z "$val" ]; then
+              echo "::error::HOSTINGER_${name} is EMPTY in this build"
+              fail=1
+            else
+              echo "✓ ${name} is set"
+            fi
+          done
+          if [ "$fail" = "1" ]; then exit 1; fi
+
       - name: Build web bundle
         env:
-          # Expo reads EXPO_PUBLIC_* from the build environment and inlines
-          # them into the static bundle. Every one of these must be set as a
-          # GitHub repository secret under Settings -> Secrets and variables
-          # -> Actions.
           EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
           EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
           EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
@@ -84,17 +91,27 @@ jobs:
       - name: Confirm .htaccess is present
         run: test -f dist/.htaccess || (echo ".htaccess missing from dist/" && exit 1)
 
-      - name: Publish dist/ to deploy branch
-        uses: peaceiris/actions-gh-pages@v4
+      # SamKirkland's FTP-Deploy-Action syncs a local directory to the FTP
+      # target. It only uploads changed files (tracks hashes in a tiny
+      # metadata file on the server), so after the initial full push each
+      # subsequent deploy is a few seconds.
+      #
+      # Requires a Hostinger FTP account scoped to public_html/ — the FTP
+      # session lands inside public_html so server-dir is './'.
+      - name: Deploy to Hostinger via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: deploy
-          # force_orphan intentionally left OFF — Hostinger's Git integration
-          # uses `git pull`, which fails on divergent branches. Orphan pushes
-          # rewrite the whole branch history on every build, so Hostinger's
-          # local clone sees a "no common ancestor" divergence and refuses to
-          # pull. Stacking commits on top lets Hostinger fast-forward cleanly.
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy build from ${{ github.sha }}'
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./dist/
+          server-dir: ./
+          # Preserve anything Hostinger or Let's Encrypt puts at the site
+          # root and never leak our local .git state.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.well-known/**
+            .user.ini
