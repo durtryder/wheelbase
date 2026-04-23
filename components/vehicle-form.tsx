@@ -33,14 +33,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchOemSpecs } from '@/services/oem-lookup';
-import type {
-  BuilderInfo,
-  BuildSheet,
-  ModCategory,
-  Modification,
-  OemSpecs,
-  OwnershipEntry,
-  Vehicle,
+import {
+  VISIBILITY_DESCRIPTIONS,
+  VISIBILITY_LABELS,
+  type BuilderInfo,
+  type BuildSheet,
+  type ModCategory,
+  type Modification,
+  type OemSpecs,
+  type OwnershipEntry,
+  type Vehicle,
+  type Visibility,
 } from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
@@ -61,6 +64,7 @@ export type VehicleFormValue = {
   modifications?: Modification[];
   ownershipHistory?: OwnershipEntry[];
   buildSheet?: BuildSheet;
+  visibility?: Visibility;
 
   oemSpecs?: OemSpecs;
 };
@@ -181,6 +185,9 @@ export function VehicleForm({
   );
   const [buildSheet, setBuildSheet] = useState<BuildSheet>(
     initialValue?.buildSheet ?? {},
+  );
+  const [visibility, setVisibility] = useState<Visibility>(
+    initialValue?.visibility ?? 'private',
   );
 
   // --- OEM Specifications ---
@@ -357,6 +364,7 @@ export function VehicleForm({
         modifications: mods.length ? mods : undefined,
         ownershipHistory: owners.length ? owners : undefined,
         buildSheet: buildSheetHasContent ? buildSheet : undefined,
+        visibility,
         oemSpecs: assembledOem,
       };
 
@@ -392,6 +400,41 @@ export function VehicleForm({
             </ThemedText>
           </View>
         ) : null}
+
+        {/* ========== Sharing ========== */}
+        <Section title="Sharing" palette={palette}>
+          <View style={styles.visibilityRow}>
+            {(Object.keys(VISIBILITY_LABELS) as Visibility[]).map((v) => {
+              const active = v === visibility;
+              return (
+                <Pressable
+                  key={v}
+                  onPress={() => setVisibility(v)}
+                  style={[
+                    styles.visibilityChip,
+                    active
+                      ? { backgroundColor: palette.tint, borderColor: palette.tint }
+                      : {
+                          backgroundColor: 'transparent',
+                          borderColor: palette.border,
+                        },
+                  ]}>
+                  <ThemedText
+                    type="metadata"
+                    style={{
+                      color: active ? '#fff' : palette.text,
+                      fontWeight: active ? '700' : '500',
+                    }}>
+                    {VISIBILITY_LABELS[v]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+          <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+            {VISIBILITY_DESCRIPTIONS[visibility]}
+          </ThemedText>
+        </Section>
 
         {/* ========== Vehicle Overview ========== */}
         <Section title="Vehicle Overview" palette={palette}>
@@ -1250,6 +1293,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 14,
+  },
+  visibilityRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  visibilityChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   actions: {
     flexDirection: 'row',

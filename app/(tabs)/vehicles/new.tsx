@@ -32,7 +32,7 @@ export default function VehicleBuilderScreen() {
       ownershipHistory: value.ownershipHistory,
       buildSheet: value.buildSheet,
       mediaIds: [],
-      visibility: 'private',
+      visibility: value.visibility ?? 'private',
       oemSpecs: value.oemSpecs,
     };
     const newId = await createVehicle(input);

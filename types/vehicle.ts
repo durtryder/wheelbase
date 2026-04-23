@@ -447,6 +447,18 @@ export type OemSpecs = {
 
 export type Visibility = 'private' | 'unlisted' | 'public';
 
+export const VISIBILITY_LABELS: Record<Visibility, string> = {
+  private: 'Private',
+  unlisted: 'Unlisted',
+  public: 'Public',
+};
+
+export const VISIBILITY_DESCRIPTIONS: Record<Visibility, string> = {
+  private: 'Only you can see this vehicle.',
+  unlisted: 'Anyone with the link can view. Not shown in the public feed.',
+  public: 'Anyone can view. Appears in the public Wheelbase feed.',
+};
+
 export type MediaItem = {
   id: string;
   vehicleId: string;

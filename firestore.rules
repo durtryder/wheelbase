@@ -6,8 +6,12 @@ service cloud.firestore {
     // Vehicles: owner can read/write their own; public vehicles readable by anyone.
     match /vehicles/{vehicleId} {
 
-      // Read a single vehicle OR list vehicles you own / public vehicles.
+      // Read a single vehicle OR list vehicles you own / public / unlisted.
+      // 'unlisted' is "accessible via direct link but not listed in the
+      // feed" — that distinction lives in queries (Feed filters to
+      // visibility == 'public'), not in rules.
       allow read: if resource.data.visibility == 'public'
+                  || resource.data.visibility == 'unlisted'
                   || (request.auth != null
                       && request.auth.uid == resource.data.ownerId);
 

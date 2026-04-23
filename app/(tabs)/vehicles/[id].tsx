@@ -20,12 +20,14 @@ import {
   watchMediaForVehicle,
 } from '@/services/media';
 import { deleteVehicle, getVehicle } from '@/services/vehicles';
-import type {
-  MediaItem,
-  Modification,
-  OemSpecs,
-  OwnershipEntry,
-  Vehicle,
+import {
+  VISIBILITY_LABELS,
+  type MediaItem,
+  type Modification,
+  type OemSpecs,
+  type OwnershipEntry,
+  type Vehicle,
+  type Visibility,
 } from '@/types/vehicle';
 
 type Palette = (typeof Colors)['light'];
@@ -311,6 +313,14 @@ export default function VehicleDetailScreen() {
           ) : null}
           <ThemedText type="title">{title}</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
+
+          {/* Visibility + share badge — visible to everyone, action is owner-only */}
+          <View style={styles.shareRow}>
+            <VisibilityPill visibility={v.visibility} palette={palette} />
+            {v.visibility !== 'private' ? (
+              <ShareButton vehicleId={v.id} palette={palette} />
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.headlineStats}>
@@ -465,10 +475,10 @@ export default function VehicleDetailScreen() {
 
         <View style={styles.actions}>
           <Pressable
-            onPress={() => router.replace('/')}
+            onPress={() => (user ? router.replace('/') : router.replace('/feed'))}
             style={[styles.ghostButton, { borderColor: palette.border }]}>
             <ThemedText style={[styles.ghostButtonText, { color: palette.text }]}>
-              Back to garage
+              {user ? 'Back to garage' : 'Back to feed'}
             </ThemedText>
           </Pressable>
           {isOwner ? (
@@ -494,6 +504,15 @@ export default function VehicleDetailScreen() {
                 )}
               </Pressable>
             </View>
+          ) : !user ? (
+            // Anonymous visitor CTA — encourage sign-up to build their own.
+            <Pressable
+              onPress={() => router.push('/sign-in')}
+              style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
+              <ThemedText style={styles.primaryButtonText}>
+                Start your own garage
+              </ThemedText>
+            </Pressable>
           ) : null}
         </View>
       </ScrollView>
@@ -621,6 +640,71 @@ function sourceName(source: OemSpecs['source']) {
     default:
       return 'External';
   }
+}
+
+// ---------- Visibility pill + Share ----------
+
+function VisibilityPill({
+  visibility,
+  palette,
+}: {
+  visibility: Visibility;
+  palette: Palette;
+}) {
+  const styling: Record<Visibility, { bg: string; fg: string }> = {
+    private: { bg: palette.surfaceDim, fg: palette.textMuted },
+    unlisted: { bg: '#f4e4bc', fg: '#5a4a1a' },
+    public: { bg: palette.tint, fg: '#fff' },
+  };
+  const s = styling[visibility];
+  return (
+    <View style={[styles.pill, { backgroundColor: s.bg }]}>
+      <ThemedText
+        type="metadata"
+        style={{ color: s.fg, fontWeight: '700', letterSpacing: 1.2 }}>
+        {VISIBILITY_LABELS[visibility].toUpperCase()}
+      </ThemedText>
+    </View>
+  );
+}
+
+function ShareButton({
+  vehicleId,
+  palette,
+}: {
+  vehicleId: string;
+  palette: Palette;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copyLink() {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/vehicles/${vehicleId}`;
+    try {
+      navigator.clipboard?.writeText?.(url).then(
+        () => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        },
+        () => {
+          // Fallback — show the URL so the user can copy manually.
+          window.prompt('Copy this link:', url);
+        },
+      );
+    } catch {
+      window.prompt('Copy this link:', url);
+    }
+  }
+
+  return (
+    <Pressable
+      onPress={copyLink}
+      style={[styles.shareButton, { borderColor: palette.border }]}>
+      <ThemedText type="metadata" style={{ color: palette.text, fontWeight: '600' }}>
+        {copied ? '✓ Link copied' : 'Share link'}
+      </ThemedText>
+    </Pressable>
+  );
 }
 
 // ---------- Vehicle Details (read view) ----------
@@ -898,6 +982,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: 16,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  pill: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  shareButton: {
+    borderWidth: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 999,
   },
   detailRow: {
     flexDirection: 'row',

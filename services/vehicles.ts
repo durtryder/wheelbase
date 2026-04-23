@@ -29,6 +29,29 @@ export async function listVehiclesForOwner(ownerId: string): Promise<Vehicle[]> 
 }
 
 /**
+ * Subscribe to live updates of every public vehicle (for the Feed page).
+ * Ordered newest-first. Returns an unsubscribe fn.
+ */
+export function watchPublicVehicles(
+  onNext: (vehicles: Vehicle[]) => void,
+  onError: (err: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, VEHICLES),
+    where('visibility', '==', 'public'),
+    orderBy('createdAt', 'desc'),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const vehicles = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Vehicle);
+      onNext(vehicles);
+    },
+    (err) => onError(err),
+  );
+}
+
+/**
  * Subscribe to live updates of the owner's vehicles. Returns an unsubscribe
  * fn suitable for React useEffect cleanup.
  */
