@@ -39,6 +39,13 @@ type Props = {
   onRemove: (item: MediaItem) => Promise<void> | void;
   onUpdateCaption: (mediaId: string, caption: string) => Promise<void> | void;
   photoActionBusy: string | null;
+  /**
+   * Optional controlled lightbox state. If `openIndex` is provided, the
+   * parent owns the value and the gallery won't keep its own copy. Useful
+   * for opening the lightbox from outside the gallery (e.g., the hero).
+   */
+  openIndex?: number | null;
+  onOpenChange?: (index: number | null) => void;
 };
 
 const GAP = 4;
@@ -53,6 +60,8 @@ export function MediaGallery({
   onRemove,
   onUpdateCaption,
   photoActionBusy,
+  openIndex,
+  onOpenChange,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -61,7 +70,13 @@ export function MediaGallery({
   const [containerWidth, setContainerWidth] = useState(
     Math.min(900, windowWidth - 48),
   );
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [internalIndex, setInternalIndex] = useState<number | null>(null);
+  const controlled = openIndex !== undefined;
+  const lightboxIndex = controlled ? (openIndex ?? null) : internalIndex;
+  const setLightboxIndex = (idx: number | null) => {
+    if (!controlled) setInternalIndex(idx);
+    onOpenChange?.(idx);
+  };
 
   const targetRowHeight =
     windowWidth < 640 ? TARGET_ROW_HEIGHT_NARROW : TARGET_ROW_HEIGHT_WIDE;

@@ -44,6 +44,7 @@ export default function VehicleDetailScreen() {
     totalBytes: number;
   } | null>(null);
   const [photoActionBusy, setPhotoActionBusy] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,13 +262,26 @@ export default function VehicleDetailScreen() {
   const isOwner = !!user && user.uid === v.ownerId;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
 
+  const coverIndex = coverMedia ? media.findIndex((m) => m.id === coverMedia.id) : -1;
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View
-          style={[
+        <Pressable
+          onPress={() => {
+            if (coverIndex >= 0) setLightboxIndex(coverIndex);
+          }}
+          disabled={coverIndex < 0}
+          style={({ pressed, hovered }) => [
             styles.hero,
-            { backgroundColor: palette.surfaceDim, borderColor: palette.border },
+            {
+              backgroundColor: palette.surfaceDim,
+              borderColor: palette.border,
+              opacity: coverIndex >= 0 && pressed ? 0.94 : 1,
+              ...(coverIndex >= 0 && hovered
+                ? ({ cursor: 'pointer' } as object)
+                : {}),
+            },
           ]}>
           {coverMedia ? (
             <Image
@@ -280,7 +294,7 @@ export default function VehicleDetailScreen() {
               No photo yet
             </ThemedText>
           )}
-        </View>
+        </Pressable>
 
         <View style={styles.titleBlock}>
           {v.nickname ? (
@@ -414,6 +428,8 @@ export default function VehicleDetailScreen() {
               onRemove={handleRemovePhoto}
               onUpdateCaption={handleUpdateCaption}
               photoActionBusy={photoActionBusy}
+              openIndex={lightboxIndex}
+              onOpenChange={setLightboxIndex}
             />
           )}
         </View>
