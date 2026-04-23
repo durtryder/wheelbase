@@ -1,0 +1,35 @@
+# Wheelbase — Apache rewrites for SPA + pre-rendered routes.
+#
+# 1. Never 304-cache the access-gated index.html (we want the latest bundle
+#    hash loaded on every visit).
+# 2. If the URL matches a real file (JS, CSS, fonts, PNG, pre-rendered
+#    sign-in.html etc.), serve it directly.
+# 3. Otherwise, fall back to /index.html so Expo Router can take over client
+#    side — matches how Firebase Hosting's SPA rewrite worked.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Skip rewrites for real files / directories.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Try <route>.html (Expo Router generates static HTML per route).
+  RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_URI}.html -f
+  RewriteRule ^(.+)$ /$1.html [L]
+
+  # Fallback: everything else goes to the SPA shell.
+  RewriteRule ^ /index.html [L]
+</IfModule>
+
+# Cache long-hashed JS / CSS aggressively; leave HTML uncached.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|gif|svg|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
