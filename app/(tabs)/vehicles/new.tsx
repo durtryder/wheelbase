@@ -30,6 +30,7 @@ export default function VehicleBuilderScreen() {
       builder: value.builder,
       modifications: value.modifications ?? [],
       ownershipHistory: value.ownershipHistory,
+      buildSheet: value.buildSheet,
       mediaIds: [],
       visibility: 'private',
       oemSpecs: value.oemSpecs,

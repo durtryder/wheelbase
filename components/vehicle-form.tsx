@@ -26,6 +26,7 @@ import {
   View,
 } from 'react-native';
 
+import { BuildSheetForm } from '@/components/build-sheet-form';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -34,6 +35,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchOemSpecs } from '@/services/oem-lookup';
 import type {
   BuilderInfo,
+  BuildSheet,
   ModCategory,
   Modification,
   OemSpecs,
@@ -58,6 +60,7 @@ export type VehicleFormValue = {
   builder?: BuilderInfo;
   modifications?: Modification[];
   ownershipHistory?: OwnershipEntry[];
+  buildSheet?: BuildSheet;
 
   oemSpecs?: OemSpecs;
 };
@@ -175,6 +178,9 @@ export function VehicleForm({
   );
   const [owners, setOwners] = useState<OwnershipEntry[]>(
     initialValue?.ownershipHistory ?? [],
+  );
+  const [buildSheet, setBuildSheet] = useState<BuildSheet>(
+    initialValue?.buildSheet ?? {},
   );
 
   // --- OEM Specifications ---
@@ -330,6 +336,12 @@ export function VehicleForm({
         manufacturer: oemManufacturer,
       });
 
+      // Only include buildSheet if at least one sub-section has content
+      const buildSheetHasContent = Object.values(buildSheet).some(
+        (section) =>
+          section && Object.values(section).some((v) => v !== undefined && v !== ''),
+      );
+
       const value: VehicleFormValue = {
         year: yr,
         make: make.trim(),
@@ -344,6 +356,7 @@ export function VehicleForm({
         builder,
         modifications: mods.length ? mods : undefined,
         ownershipHistory: owners.length ? owners : undefined,
+        buildSheet: buildSheetHasContent ? buildSheet : undefined,
         oemSpecs: assembledOem,
       };
 
@@ -535,6 +548,11 @@ export function VehicleForm({
           {/* Ownership */}
           <SubSectionHeader title="Ownership History" palette={palette} />
           <OwnershipRepeater value={owners} onChange={setOwners} palette={palette} />
+        </Section>
+
+        {/* ========== Build Sheet ========== */}
+        <Section title="Build Sheet" palette={palette}>
+          <BuildSheetForm value={buildSheet} onChange={setBuildSheet} />
         </Section>
 
         {/* ========== OEM Specifications ========== */}

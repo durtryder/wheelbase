@@ -44,6 +44,9 @@ export type Vehicle = {
   ownershipHistory?: OwnershipEntry[];
   includedItems?: string[];
   builder?: BuilderInfo;
+  // Full BaT-style build sheet. Every field is optional — the owner fills in
+  // what applies to their build. See BuildSheet below for the full structure.
+  buildSheet?: BuildSheet;
   // Actual uploaded documents (PDFs, scans) live in the /documents collection
   // and are joined on vehicleId at query time.
 
@@ -129,6 +132,186 @@ export type HistoryEntry = {
   cost?: number;
   vendor?: string;
   mediaIds?: string[];
+};
+
+/**
+ * BuildSheet — the BaT-style comprehensive build record. Every field is
+ * optional; most are free-text because builders are precise in ways that
+ * don't map cleanly to fixed formats ("390 hp @ 6500 rpm", "1/4 mile
+ * 12.34 @ 113 mph", "Garrett GTX3582R"). Fields split into sections that
+ * mirror the detail-page and editor UI.
+ */
+export type BuildSheet = {
+  overview?: BuildSheetOverview;
+  engine?: BuildSheetEngine;
+  drivetrain?: BuildSheetDrivetrain;
+  suspension?: BuildSheetSuspension;
+  brakes?: BuildSheetBrakes;
+  wheelsTires?: BuildSheetWheelsTires;
+  exterior?: BuildSheetExterior;
+  interior?: BuildSheetInterior;
+  performance?: BuildSheetPerformance;
+  electrical?: BuildSheetElectrical;
+  weight?: BuildSheetWeight;
+};
+
+export type PrimaryUse =
+  | 'street'
+  | 'track'
+  | 'show'
+  | 'restomod'
+  | 'off-road'
+  | 'other';
+
+export const PRIMARY_USE_LABELS: Record<PrimaryUse, string> = {
+  street: 'Street',
+  track: 'Track',
+  show: 'Show',
+  restomod: 'Restomod',
+  'off-road': 'Off-road',
+  other: 'Other',
+};
+
+export type FinishType =
+  | 'gloss'
+  | 'matte'
+  | 'satin'
+  | 'metallic'
+  | 'pearlescent'
+  | 'other';
+
+export const FINISH_TYPE_LABELS: Record<FinishType, string> = {
+  gloss: 'Gloss',
+  matte: 'Matte',
+  satin: 'Satin',
+  metallic: 'Metallic',
+  pearlescent: 'Pearlescent',
+  other: 'Other',
+};
+
+export type BuildSheetOverview = {
+  chassisCode?: string;
+  buildStartDate?: Timestamp;
+  buildCompletionDate?: Timestamp;
+  primaryUse?: PrimaryUse;
+};
+
+export type BuildSheetEngine = {
+  typeCode?: string;
+  displacement?: string;
+  block?: string;
+  pistons?: string;
+  rods?: string;
+  crankshaft?: string;
+  cylinderHead?: string;
+  camshafts?: string;
+  induction?: string;
+  intake?: string;
+  throttleBody?: string;
+  turboSupercharger?: string;
+  boostLevel?: string;
+  injectors?: string;
+  fuelPump?: string;
+  cooling?: string;
+  headers?: string;
+  midPipe?: string;
+  muffler?: string;
+  ecu?: string;
+  tuning?: string;
+  horsepower?: string;
+  torque?: string;
+};
+
+export type BuildSheetDrivetrain = {
+  transmission?: string;
+  gearRatios?: string;
+  clutchConverter?: string;
+  flywheel?: string;
+  differentials?: string;
+  finalDriveRatio?: string;
+  axlesDriveshaft?: string;
+};
+
+export type BuildSheetSuspension = {
+  front?: string;
+  rear?: string;
+  coiloverSprings?: string;
+  dampers?: string;
+  swayBars?: string;
+  bushings?: string;
+  alignmentSpecs?: string;
+  chassisReinforcement?: string;
+  bracing?: string;
+  seamWelding?: string;
+  rollCage?: string;
+};
+
+export type BuildSheetBrakes = {
+  frontBrakes?: string;
+  frontCalipers?: string;
+  frontRotors?: string;
+  rearBrakes?: string;
+  brakeLines?: string;
+  masterCylinder?: string;
+  brakeBiasSystem?: string;
+  padsFluid?: string;
+};
+
+export type BuildSheetWheelsTires = {
+  wheelBrandModel?: string;
+  wheelSizeFront?: string;
+  wheelSizeRear?: string;
+  offset?: string;
+  finish?: string;
+  tireBrandModel?: string;
+  tireSizeFront?: string;
+  tireSizeRear?: string;
+};
+
+export type BuildSheetExterior = {
+  paintColorCode?: string;
+  finishType?: FinishType;
+  bodyKit?: string;
+  frontSplitter?: string;
+  sideSkirts?: string;
+  rearDiffuser?: string;
+  wingSpoiler?: string;
+  badging?: string;
+};
+
+export type BuildSheetInterior = {
+  seats?: string;
+  upholsteryMaterial?: string;
+  steeringWheel?: string;
+  dashGauges?: string;
+  infotainment?: string;
+  soundSystem?: string;
+  harnesses?: string;
+  fireSuppression?: string;
+  climateControl?: string;
+};
+
+export type BuildSheetPerformance = {
+  zeroToSixty?: string;
+  quarterMile?: string;
+  topSpeed?: string;
+  dynoResults?: string;
+  trackTimes?: string;
+};
+
+export type BuildSheetElectrical = {
+  wiringHarness?: string;
+  batterySetup?: string;
+  alternator?: string;
+  dataLogging?: string;
+  customElectronics?: string;
+};
+
+export type BuildSheetWeight = {
+  curbWeight?: string;
+  weightDistributionFront?: string;
+  weightDistributionRear?: string;
+  reductionMeasures?: string;
 };
 
 export type BuilderInfo = {

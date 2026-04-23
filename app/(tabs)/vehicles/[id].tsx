@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { BuildSheetDisplay } from '@/components/build-sheet-display';
 import { DocumentList } from '@/components/document-list';
 import { MediaGallery } from '@/components/media-gallery';
 import { ThemedText } from '@/components/themed-text';
@@ -341,6 +342,14 @@ export default function VehicleDetailScreen() {
         </Section>
 
         <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">Build Sheet</ThemedText>
+            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+          </View>
+          <BuildSheetDisplay buildSheet={v.buildSheet} isOwner={isOwner} />
+        </View>
 
         {v.oemSpecs ? (
           <Section title={`OEM Specifications (${sourceName(v.oemSpecs.source)})`} palette={palette}>
