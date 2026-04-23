@@ -43,3 +43,11 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase CLI local state
+.firebase/
+
+# Claude Code / skills harness
+.claude/
+.agents/
+skills-lock.json
