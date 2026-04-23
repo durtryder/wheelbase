@@ -1,0 +1,64 @@
+name: Build & publish to deploy branch
+
+# Every push to main rebuilds the web bundle and pushes it to the `deploy`
+# branch as an orphan commit. Hostinger's Git integration points at that
+# branch — the site operator clicks "Deploy" in hPanel to push live.
+#
+# Also supports manual trigger via the Actions tab (workflow_dispatch).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Prevent overlapping builds from producing a messy deploy-branch history.
+concurrency:
+  group: deploy-branch
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        env:
+          # Expo reads EXPO_PUBLIC_* from the build environment and inlines
+          # them into the static bundle. Every one of these must be set as a
+          # GitHub repository secret under Settings -> Secrets and variables
+          # -> Actions.
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+          EXPO_PUBLIC_ACCESS_PASSWORD: ${{ secrets.EXPO_PUBLIC_ACCESS_PASSWORD }}
+        run: npx expo export --platform web
+
+      - name: Confirm .htaccess is present
+        run: test -f dist/.htaccess || (echo ".htaccess missing from dist/" && exit 1)
+
+      - name: Publish dist/ to deploy branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: deploy
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy build from ${{ github.sha }}'
