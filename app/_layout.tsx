@@ -19,13 +19,16 @@ export const unstable_settings = {
 };
 
 /**
- * URLs we intentionally let past the preview access gate. Today that's
- * /vehicles/<id> — shared public-vehicle links need to work without
- * giving out the preview password. We don't bypass /vehicles/new or
- * /vehicles/edit/<id>; those live behind the gate like everything else.
+ * URLs we intentionally let past the preview access gate. Today:
+ *   /vehicles/<id> — shared public-vehicle links
+ *   /u/<uid>       — public builder profile pages
+ * Both need to work for people who don't have the preview password.
+ * We don't bypass /vehicles/new or /vehicles/edit/<id> — those are
+ * owner-only actions that live behind the gate like everything else.
  */
 function isPublicShareRoute(pathname: string | null): boolean {
   if (!pathname) return false;
+  if (/^\/u\/[^/]+$/.test(pathname)) return true;
   return (
     /^\/vehicles\/[^/]+$/.test(pathname) &&
     pathname !== '/vehicles/new'

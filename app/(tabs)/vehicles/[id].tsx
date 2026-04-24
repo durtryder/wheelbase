@@ -312,11 +312,23 @@ export default function VehicleDetailScreen() {
             </ThemedText>
           ) : null}
           <ThemedText type="title">{title}</ThemedText>
-          <ThemedText
-            type="metadata"
-            style={{ color: palette.textMuted, marginTop: 4 }}>
-            by {v.ownerDisplayName?.trim() || 'a Wheelbase member'}
-          </ThemedText>
+          <Pressable
+            onPress={() => router.push(`/u/${v.ownerId}`)}
+            style={({ hovered }) => [
+              { marginTop: 4 },
+              hovered ? ({ cursor: 'pointer' } as object) : null,
+            ]}>
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.textMuted, textAlign: 'center' }}>
+              by{' '}
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.tint, fontWeight: '600' }}>
+                {v.ownerDisplayName?.trim() || 'a Wheelbase member'}
+              </ThemedText>
+            </ThemedText>
+          </Pressable>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
 
           {/* Visibility + share badge — visible to everyone, action is owner-only */}

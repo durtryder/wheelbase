@@ -79,11 +79,27 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           </ThemedText>
         ) : null}
         <ThemedText type="subtitle">{title}</ThemedText>
-        <ThemedText
-          type="metadata"
-          style={{ color: palette.textMuted, marginTop: 4 }}>
-          by {vehicle.ownerDisplayName?.trim() || 'a Wheelbase member'}
-        </ThemedText>
+        <Pressable
+          onPress={(e) => {
+            // Don't let the outer card Pressable also handle the press.
+            e.stopPropagation?.();
+            router.push(`/u/${vehicle.ownerId}`);
+          }}
+          style={({ hovered }) => [
+            { marginTop: 4, alignSelf: 'flex-start' },
+            hovered ? ({ cursor: 'pointer' } as object) : null,
+          ]}>
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted }}>
+            by{' '}
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.tint, fontWeight: '600' }}>
+              {vehicle.ownerDisplayName?.trim() || 'a Wheelbase member'}
+            </ThemedText>
+          </ThemedText>
+        </Pressable>
 
         <View style={[styles.hairline, { backgroundColor: palette.border }]} />
 
