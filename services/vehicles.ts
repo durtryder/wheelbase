@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
@@ -127,4 +128,22 @@ export async function updateVehicle(id: string, patch: Partial<Vehicle>) {
 
 export async function deleteVehicle(id: string) {
   await deleteDoc(doc(db, VEHICLES, id));
+}
+
+/**
+ * Persist a new display order for a list of vehicles. Writes `displayOrder`
+ * as 0..N-1 in a single batched update so the garage either sees the full
+ * new order or the old one — never a half-applied state. Caller is
+ * responsible for passing ids in the desired visual order (first → top).
+ */
+export async function reorderVehicles(orderedIds: string[]) {
+  if (orderedIds.length === 0) return;
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, index) => {
+    batch.update(doc(db, VEHICLES, id), {
+      displayOrder: index,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
 }

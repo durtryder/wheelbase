@@ -740,7 +740,6 @@ function Lightbox({
                   dateDisplay,
                   formatCameraLine(item.exif),
                   formatExposureLine(item.exif),
-                  item.width && item.height ? `${item.width} × ${item.height}` : null,
                   isCover ? 'Cover photo' : null,
                 ]
                   .filter(Boolean)

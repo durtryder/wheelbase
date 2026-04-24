@@ -79,6 +79,14 @@ export type Vehicle = {
   visibility: Visibility;
   publicSlug?: string;
 
+  /**
+   * User-controlled sort index for the owner's garage. Lower values
+   * appear first. Unset on older records — those fall back to createdAt
+   * order. Written as a dense 0..N-1 sequence whenever the user saves a
+   * new order, so we never run out of room.
+   */
+  displayOrder?: number;
+
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
