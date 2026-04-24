@@ -312,6 +312,11 @@ export default function VehicleDetailScreen() {
             </ThemedText>
           ) : null}
           <ThemedText type="title">{title}</ThemedText>
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted, marginTop: 4 }}>
+            by {v.ownerDisplayName?.trim() || 'a Wheelbase member'}
+          </ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
 
           {/* Visibility + share badge — visible to everyone, action is owner-only */}

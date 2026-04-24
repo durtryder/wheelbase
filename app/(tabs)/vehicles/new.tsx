@@ -15,8 +15,10 @@ export default function VehicleBuilderScreen() {
         'Sign in required before saving. Enable Email/Password in Firebase Auth, then sign in.',
       );
     }
+    const ownerDisplayName = user.displayName?.trim() || undefined;
     const input: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'> = {
       ownerId: user.uid,
+      ownerDisplayName,
       year: value.year,
       make: value.make,
       model: value.model,

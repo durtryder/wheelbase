@@ -9,6 +9,13 @@ import type { Timestamp } from 'firebase/firestore';
 export type Vehicle = {
   id: string;
   ownerId: string;
+  /**
+   * Denormalized display name of the owner at last write time. Populated
+   * from Firebase Auth's user.displayName on create / update. Not reactive
+   * to displayName changes elsewhere — next time the owner saves one of
+   * their vehicles, that vehicle's attribution refreshes.
+   */
+  ownerDisplayName?: string;
 
   // Identity
   year: number;

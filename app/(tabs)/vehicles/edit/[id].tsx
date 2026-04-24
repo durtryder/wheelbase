@@ -46,7 +46,12 @@ export default function EditVehicleScreen() {
       throw new Error("You can only edit vehicles you own.");
     }
 
+    // Refresh the denormalized owner name on every save so changes to the
+    // user's Firebase displayName land in their vehicles without a separate
+    // backfill job.
+    const ownerDisplayName = user.displayName?.trim() || undefined;
     const patch: Partial<Vehicle> = {
+      ownerDisplayName,
       year: value.year,
       make: value.make,
       model: value.model,

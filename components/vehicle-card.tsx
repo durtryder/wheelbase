@@ -79,6 +79,11 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           </ThemedText>
         ) : null}
         <ThemedText type="subtitle">{title}</ThemedText>
+        <ThemedText
+          type="metadata"
+          style={{ color: palette.textMuted, marginTop: 4 }}>
+          by {vehicle.ownerDisplayName?.trim() || 'a Wheelbase member'}
+        </ThemedText>
 
         <View style={[styles.hairline, { backgroundColor: palette.border }]} />
 
