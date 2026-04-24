@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -27,6 +28,15 @@ export async function signIn(email: string, password: string): Promise<User> {
 
 export async function signOutUser(): Promise<void> {
   await signOut(auth);
+}
+
+/**
+ * Send a password reset email via Firebase. The email contains a link to a
+ * Firebase-hosted page where the user sets a new password; after that they
+ * can sign in normally.
+ */
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email);
 }
 
 /**

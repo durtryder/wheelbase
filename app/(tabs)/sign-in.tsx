@@ -8,9 +8,9 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { humanizeAuthError, signIn, signUp } from '@/services/auth';
+import { humanizeAuthError, resetPassword, signIn, signUp } from '@/services/auth';
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'reset';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function SignInScreen() {
   const [displayName, setDisplayName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSentTo, setResetSentTo] = useState<string | null>(null);
 
   // Already signed in? Offer to continue to the Garage.
   if (!authLoading && user) {
@@ -49,13 +50,39 @@ export default function SignInScreen() {
     );
   }
 
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+    setResetSentTo(null);
+  }
+
   async function handleSubmit() {
     setError(null);
+    setResetSentTo(null);
     const emailTrimmed = email.trim();
+
+    if (mode === 'reset') {
+      if (!emailTrimmed) {
+        setError('Enter the email you signed up with.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await resetPassword(emailTrimmed);
+        setResetSentTo(emailTrimmed);
+      } catch (e) {
+        setError(humanizeAuthError(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!emailTrimmed || !password) {
       setError('Email and password are required.');
       return;
     }
+
     setSubmitting(true);
     try {
       if (mode === 'signup') {
@@ -71,36 +98,60 @@ export default function SignInScreen() {
     }
   }
 
+  const title =
+    mode === 'signin'
+      ? 'Sign in'
+      : mode === 'signup'
+        ? 'Create an account'
+        : 'Reset your password';
+
+  const submitLabel =
+    mode === 'signin'
+      ? 'Sign in'
+      : mode === 'signup'
+        ? 'Create account'
+        : 'Send reset email';
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.titleBlock}>
-          <ThemedText type="title">
-            {mode === 'signin' ? 'Sign in' : 'Create an account'}
-          </ThemedText>
+          <ThemedText type="title">{title}</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
         </View>
 
-        <View style={[styles.toggle, { borderColor: palette.border }]}>
-          <ToggleButton
-            label="Sign in"
-            isActive={mode === 'signin'}
-            onPress={() => {
-              setMode('signin');
-              setError(null);
-            }}
-            palette={palette}
-          />
-          <ToggleButton
-            label="Create account"
-            isActive={mode === 'signup'}
-            onPress={() => {
-              setMode('signup');
-              setError(null);
-            }}
-            palette={palette}
-          />
-        </View>
+        {mode !== 'reset' ? (
+          <View style={[styles.toggle, { borderColor: palette.border }]}>
+            <ToggleButton
+              label="Sign in"
+              isActive={mode === 'signin'}
+              onPress={() => switchMode('signin')}
+              palette={palette}
+            />
+            <ToggleButton
+              label="Create account"
+              isActive={mode === 'signup'}
+              onPress={() => switchMode('signup')}
+              palette={palette}
+            />
+          </View>
+        ) : null}
+
+        {resetSentTo ? (
+          <ThemedView
+            style={[
+              styles.notice,
+              { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+            ]}>
+            <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+              Check your email
+            </ThemedText>
+            <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 4 }}>
+              We sent a password-reset link to {resetSentTo}. Open it and set a
+              new password, then come back and sign in.
+            </ThemedText>
+          </ThemedView>
+        ) : null}
 
         <View style={styles.form}>
           {mode === 'signup' ? (
@@ -125,16 +176,18 @@ export default function SignInScreen() {
             textContentType="emailAddress"
             placeholder="you@example.com"
           />
-          <FormField
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            textContentType={mode === 'signup' ? 'newPassword' : 'password'}
-            placeholder={mode === 'signup' ? 'At least 6 characters' : ''}
-          />
+          {mode !== 'reset' ? (
+            <FormField
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              textContentType={mode === 'signup' ? 'newPassword' : 'password'}
+              placeholder={mode === 'signup' ? 'At least 6 characters' : ''}
+            />
+          ) : null}
         </View>
 
         {error ? (
@@ -154,18 +207,38 @@ export default function SignInScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <ThemedText style={styles.primaryButtonText}>
-                {mode === 'signin' ? 'Sign in' : 'Create account'}
-              </ThemedText>
+              <ThemedText style={styles.primaryButtonText}>{submitLabel}</ThemedText>
             )}
           </Pressable>
         </View>
 
-        <ThemedText type="metadata" style={{ color: palette.textMuted, textAlign: 'center' }}>
-          {mode === 'signin'
-            ? "Don't have an account yet? Create one above."
-            : 'Already have an account? Sign in above.'}
-        </ThemedText>
+        {mode === 'signin' ? (
+          <Pressable onPress={() => switchMode('reset')}>
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.tint, textAlign: 'center', fontWeight: '600' }}>
+              Forgot password?
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
+        {mode === 'reset' ? (
+          <Pressable onPress={() => switchMode('signin')}>
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.textMuted, textAlign: 'center', fontWeight: '600' }}>
+              ← Back to sign in
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
+        {mode !== 'reset' ? (
+          <ThemedText type="metadata" style={{ color: palette.textMuted, textAlign: 'center' }}>
+            {mode === 'signin'
+              ? "Don't have an account yet? Create one above."
+              : 'Already have an account? Sign in above.'}
+          </ThemedText>
+        ) : null}
       </ScrollView>
     </ThemedView>
   );
@@ -241,6 +314,11 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 14,
+  },
+  notice: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 14,
   },
   centerRow: {
     flexDirection: 'row',
