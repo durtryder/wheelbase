@@ -47,11 +47,19 @@ type Props = {
    */
   openIndex?: number | null;
   onOpenChange?: (index: number | null) => void;
+  /**
+   * When set, only the first N justified rows render until the user taps
+   * "Show more". Matches the echeng editorial style — the grid stays
+   * digestible, but a single tap unlocks the full wall. Set to
+   * `Infinity` to disable collapsing. Defaults to 3.
+   */
+  collapsedRowLimit?: number;
 };
 
 const GAP = 4;
 const TARGET_ROW_HEIGHT_WIDE = 220;
 const TARGET_ROW_HEIGHT_NARROW = 140;
+const DEFAULT_COLLAPSED_ROWS = 3;
 
 export function MediaGallery({
   media,
@@ -63,6 +71,7 @@ export function MediaGallery({
   photoActionBusy,
   openIndex,
   onOpenChange,
+  collapsedRowLimit = DEFAULT_COLLAPSED_ROWS,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -72,6 +81,7 @@ export function MediaGallery({
     Math.min(900, windowWidth - 48),
   );
   const [internalIndex, setInternalIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const controlled = openIndex !== undefined;
   const lightboxIndex = controlled ? (openIndex ?? null) : internalIndex;
   const setLightboxIndex = (idx: number | null) => {
@@ -87,6 +97,14 @@ export function MediaGallery({
     [media, containerWidth, targetRowHeight],
   );
 
+  const canCollapse =
+    Number.isFinite(collapsedRowLimit) && rows.length > collapsedRowLimit;
+  const visibleRows =
+    canCollapse && !expanded ? rows.slice(0, collapsedRowLimit) : rows;
+  const hiddenCount = canCollapse && !expanded
+    ? rows.slice(collapsedRowLimit).reduce((sum, r) => sum + r.items.length, 0)
+    : 0;
+
   const handleLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
     if (Math.abs(w - containerWidth) > 1) setContainerWidth(w);
@@ -94,12 +112,12 @@ export function MediaGallery({
 
   return (
     <View onLayout={handleLayout}>
-      {rows.map((row, rowIdx) => (
+      {visibleRows.map((row, rowIdx) => (
         <View
           key={rowIdx}
           style={[
             styles.row,
-            { marginBottom: rowIdx === rows.length - 1 ? 0 : GAP },
+            { marginBottom: rowIdx === visibleRows.length - 1 ? 0 : GAP },
           ]}>
           {row.items.map((item, itemIdx) => {
             const isCover = item.id === vehicle.coverPhotoId;
@@ -119,6 +137,25 @@ export function MediaGallery({
           })}
         </View>
       ))}
+
+      {canCollapse && !expanded ? (
+        <View style={styles.showMoreWrap}>
+          <Pressable
+            onPress={() => setExpanded(true)}
+            style={({ hovered, pressed }) => [
+              styles.showMoreButton,
+              {
+                opacity: pressed ? 0.75 : 1,
+                ...(hovered ? ({ cursor: 'pointer' } as object) : {}),
+              },
+            ]}>
+            <Text style={styles.showMoreText}>
+              Show all {media.length} · {hiddenCount} more
+            </Text>
+            <Text style={styles.showMoreChevron}>⌄</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {lightboxIndex !== null ? (
         <Lightbox
@@ -621,14 +658,12 @@ function formatTimestamp(ts: MediaItem['createdAt']): string | null {
 }
 
 /**
- * Prefer the actual capture date (EXIF DateTimeOriginal) over the upload
- * timestamp, and label each appropriately so the user can tell them apart.
+ * Show the capture date only (EXIF DateTimeOriginal). The upload timestamp
+ * is not a signal most viewers care about, so we omit it rather than
+ * muddle the metadata line. Returns null when EXIF lacks a taken date.
  */
 function formatDateForItem(item: MediaItem): string | null {
-  const taken = item.takenAt ? formatTimestamp(item.takenAt) : null;
-  if (taken) return `Taken ${taken}`;
-  const uploaded = formatTimestamp(item.createdAt);
-  return uploaded ? `Uploaded ${uploaded}` : null;
+  return item.takenAt ? formatTimestamp(item.takenAt) : null;
 }
 
 function formatCameraLine(exif: MediaItem['exif']): string | null {
@@ -734,6 +769,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: Fonts.sans.regular,
+  },
+  showMoreWrap: {
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  showMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 228, 188, 0.35)',
+    borderRadius: 999,
+  },
+  showMoreText: {
+    color: '#f4e4bc',
+    fontSize: 12,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  showMoreChevron: {
+    color: '#f4e4bc',
+    fontSize: 18,
+    lineHeight: 16,
+    marginTop: -4,
   },
 });
 
