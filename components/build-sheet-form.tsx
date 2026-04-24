@@ -1,5 +1,5 @@
 /**
- * BuildSheetForm — the editable BaT-style build sheet. Rendered inside the
+ * BuildSheetForm — the editable build sheet. Rendered inside the
  * Vehicle Builder form. Fields are organized into 11 sections; a global
  * "Show advanced fields" toggle expands every section's lower-signal rows.
  *
@@ -13,6 +13,7 @@ import { Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { DateField } from '@/components/date-field';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -85,7 +86,7 @@ export function BuildSheetForm({ value, onChange }: Props) {
     <View style={styles.root}>
       <View style={styles.toggleRow}>
         <ThemedText type="metadata" style={{ color: palette.textMuted, flex: 1 }}>
-          A full BaT-style spec sheet for this build. Fill in what applies —
+          A full spec sheet for this build. Fill in what applies —
           everything is optional.
         </ThemedText>
         <Pressable
@@ -125,23 +126,21 @@ export function BuildSheetForm({ value, onChange }: Props) {
             />
             <Row>
               <Col>
-                <FormField
+                <DateField
                   label="Build Start Date"
                   value={formatTimestampAsDate(overview.buildStartDate)}
                   onChangeText={(t) =>
                     update('overview', { buildStartDate: parseDateToTimestamp(t) })
                   }
-                  placeholder="YYYY-MM-DD"
                 />
               </Col>
               <Col>
-                <FormField
+                <DateField
                   label="Build Completion Date"
                   value={formatTimestampAsDate(overview.buildCompletionDate)}
                   onChangeText={(t) =>
                     update('overview', { buildCompletionDate: parseDateToTimestamp(t) })
                   }
-                  placeholder="YYYY-MM-DD"
                 />
               </Col>
             </Row>

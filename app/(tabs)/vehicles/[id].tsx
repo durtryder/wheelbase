@@ -354,11 +354,22 @@ export default function VehicleDetailScreen() {
           </Pressable>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
 
-          {/* Visibility + share badge — visible to everyone, action is owner-only */}
+          {/* Visibility + share on the left, Edit on the right (owners only).
+              Wraps gracefully on narrow screens so the Edit action never
+              gets clipped. */}
           <View style={styles.shareRow}>
-            <VisibilityPill visibility={v.visibility} palette={palette} />
-            {v.visibility !== 'private' ? (
-              <ShareButton vehicleId={v.id} palette={palette} />
+            <View style={styles.shareGroup}>
+              <VisibilityPill visibility={v.visibility} palette={palette} />
+              {v.visibility !== 'private' ? (
+                <ShareButton vehicleId={v.id} palette={palette} />
+              ) : null}
+            </View>
+            {isOwner ? (
+              <Pressable
+                onPress={() => router.push(`/vehicles/edit/${v.id}`)}
+                style={[styles.topEditButton, { backgroundColor: palette.tint }]}>
+                <ThemedText style={styles.topEditButtonText}>Edit vehicle</ThemedText>
+              </Pressable>
             ) : null}
           </View>
         </View>
@@ -564,28 +575,23 @@ export default function VehicleDetailScreen() {
             </ThemedText>
           </Pressable>
           {isOwner ? (
-            <View style={styles.ownerActions}>
-              <Pressable
-                onPress={() => router.push(`/vehicles/edit/${v.id}`)}
-                style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-                <ThemedText style={styles.primaryButtonText}>Edit vehicle</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={handleDelete}
-                disabled={deleting}
-                style={[
-                  styles.dangerButton,
-                  { borderColor: palette.tint, opacity: deleting ? 0.6 : 1 },
-                ]}>
-                {deleting ? (
-                  <ActivityIndicator color={palette.tint} />
-                ) : (
-                  <ThemedText style={[styles.dangerButtonText, { color: palette.tint }]}>
-                    Delete vehicle
-                  </ThemedText>
-                )}
-              </Pressable>
-            </View>
+            // Edit moved to the top of the page; only Delete remains here
+            // so destructive action stays out of easy reach.
+            <Pressable
+              onPress={handleDelete}
+              disabled={deleting}
+              style={[
+                styles.dangerButton,
+                { borderColor: palette.tint, opacity: deleting ? 0.6 : 1 },
+              ]}>
+              {deleting ? (
+                <ActivityIndicator color={palette.tint} />
+              ) : (
+                <ThemedText style={[styles.dangerButtonText, { color: palette.tint }]}>
+                  Delete vehicle
+                </ThemedText>
+              )}
+            </Pressable>
           ) : !user ? (
             // Anonymous visitor CTA — encourage sign-up to build their own.
             <Pressable
@@ -862,6 +868,59 @@ function VehicleDetailsSection({
           <ThemedText type="eyebrow" style={{ color: palette.tint }}>
             Ownership History
           </ThemedText>
+
+          {/* Snapshot line — answers "who has it, who had it last" without
+              making the reader scan a list. Hidden when no isCurrent flag
+              is set (older records that predate this field). */}
+          {(() => {
+            const current = owners.find((o) => o.isCurrent);
+            const previous = owners.filter((o) => !o.isCurrent);
+            const prev = pickMostRecentPreviousForDisplay(previous);
+            if (!current && !prev) return null;
+            return (
+              <View
+                style={[
+                  styles.ownershipSnapshot,
+                  { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+                ]}>
+                {current ? (
+                  <View style={styles.ownershipSnapshotRow}>
+                    <ThemedText
+                      type="eyebrow"
+                      style={{ color: palette.textMuted, width: 96 }}>
+                      Current
+                    </ThemedText>
+                    <ThemedText
+                      type="defaultSemiBold"
+                      style={{ color: palette.text, flex: 1 }}>
+                      {current.ownerName || '(unnamed)'}
+                      {formatLocation(current.location)
+                        ? `  ·  ${formatLocation(current.location)}`
+                        : ''}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {prev ? (
+                  <View style={styles.ownershipSnapshotRow}>
+                    <ThemedText
+                      type="eyebrow"
+                      style={{ color: palette.textMuted, width: 96 }}>
+                      Previous
+                    </ThemedText>
+                    <ThemedText
+                      type="default"
+                      style={{ color: palette.textMuted, flex: 1 }}>
+                      {prev.ownerName || '(unnamed)'}
+                      {formatLocation(prev.location)
+                        ? `  ·  ${formatLocation(prev.location)}`
+                        : ''}
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })()}
+
           <View style={styles.buildCards}>
             {owners.map((o) => (
               <OwnershipCard key={o.id} entry={o} palette={palette} />
@@ -922,10 +981,28 @@ function OwnershipCard({
   const subline = [span, loc].filter(Boolean).join('  ·  ');
 
   return (
-    <View style={[styles.buildCard, { borderColor: palette.border }]}>
-      <ThemedText type="defaultSemiBold">
-        {entry.ownerName || '(Unnamed owner)'}
-      </ThemedText>
+    <View
+      style={[
+        styles.buildCard,
+        {
+          borderColor: entry.isCurrent ? palette.tint : palette.border,
+          borderWidth: entry.isCurrent ? 2 : 1,
+        },
+      ]}>
+      <View style={styles.ownerCardHeader}>
+        <ThemedText type="defaultSemiBold" style={{ flexShrink: 1 }}>
+          {entry.ownerName || '(Unnamed owner)'}
+        </ThemedText>
+        {entry.isCurrent ? (
+          <View style={[styles.currentBadgeRead, { backgroundColor: palette.tint }]}>
+            <ThemedText
+              type="metadata"
+              style={{ color: '#fff', fontWeight: '700', letterSpacing: 1 }}>
+              CURRENT
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
       {subline ? (
         <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 6 }}>
           {subline}
@@ -938,6 +1015,38 @@ function OwnershipCard({
       ) : null}
     </View>
   );
+}
+
+/**
+ * Mirror of the vehicle-form's `pickMostRecentPrevious` for the read-side
+ * ownership snapshot. Priority: latest relinquishedAt, then latest
+ * acquiredAt, then list order (last entry in the array wins).
+ */
+function pickMostRecentPreviousForDisplay(
+  previous: OwnershipEntry[],
+): OwnershipEntry | undefined {
+  if (previous.length === 0) return undefined;
+  const tsMillis = (ts: OwnershipEntry['acquiredAt']) => {
+    if (!ts) return 0;
+    try {
+      const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts as unknown as Date);
+      return d instanceof Date && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+    } catch {
+      return 0;
+    }
+  };
+  let best = previous[0];
+  let bestScore = -Infinity;
+  previous.forEach((entry, i) => {
+    const rel = tsMillis(entry.relinquishedAt);
+    const acq = tsMillis(entry.acquiredAt);
+    const score = rel || acq || i;
+    if (score >= bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  });
+  return best;
 }
 
 function formatDate(ts: Modification['installedAt']): string | undefined {
@@ -1078,6 +1187,30 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 16,
   },
+  ownerCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  currentBadgeRead: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+  },
+  ownershipSnapshot: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 14,
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  ownershipSnapshotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   storyBody: {
     fontSize: 17,
     lineHeight: 28,
@@ -1086,10 +1219,27 @@ const styles = StyleSheet.create({
   shareRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     marginTop: 4,
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  shareGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  topEditButton: {
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+  },
+  topEditButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   pill: {
     paddingVertical: 5,

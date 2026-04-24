@@ -298,7 +298,7 @@ export function BuildSheetDisplay({ buildSheet, isOwner }: Props) {
     <View style={styles.root}>
       <View style={styles.toggleRow}>
         <ThemedText type="metadata" style={{ color: palette.textMuted, flex: 1 }}>
-          BaT-style build sheet.
+          Full build sheet.
           {hasAnyData ? '' : (isOwner ? ' Fill this in from the Edit page to surface it here.' : ' No details yet.')}
         </ThemedText>
         {hasAnyData ? (

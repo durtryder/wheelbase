@@ -59,7 +59,7 @@ export type Vehicle = {
   ownershipHistory?: OwnershipEntry[];
   includedItems?: string[];
   builder?: BuilderInfo;
-  // Full BaT-style build sheet. Every field is optional — the owner fills in
+  // Full build sheet. Every field is optional — the owner fills in
   // what applies to their build. See BuildSheet below for the full structure.
   buildSheet?: BuildSheet;
   // Actual uploaded documents (PDFs, scans) live in the /documents collection
@@ -150,7 +150,7 @@ export type HistoryEntry = {
 };
 
 /**
- * BuildSheet — the BaT-style comprehensive build record. Every field is
+ * BuildSheet — the comprehensive build record. Every field is
  * optional; most are free-text because builders are precise in ways that
  * don't map cleanly to fixed formats ("390 hp @ 6500 rpm", "1/4 mile
  * 12.34 @ 113 mph", "Garrett GTX3582R"). Fields split into sections that
@@ -347,6 +347,13 @@ export type OwnershipEntry = {
   acquiredAt?: Timestamp;
   relinquishedAt?: Timestamp;
   notes?: string;
+  /**
+   * Marks which entry represents the vehicle's current steward. Enforced
+   * as single-select by the editor UI. When no row is flagged current, the
+   * detail page falls back to "no current owner listed" rather than
+   * guessing from dates.
+   */
+  isCurrent?: boolean;
 };
 
 /**

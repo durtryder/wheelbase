@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -298,6 +299,37 @@ function Lightbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, media.length, editingCaption]);
 
+  // Touch swipe: left = next, right = prev, down = close. Horizontal must
+  // outrun vertical by a small margin so scrolling the caption area on
+  // mobile doesn't flip photos. The responder defers to child touches
+  // (buttons, video controls) unless the gesture is clearly a swipe.
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) =>
+          !editingCaption &&
+          (Math.abs(g.dx) > 12 || Math.abs(g.dy) > 24) &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 0.8,
+        onMoveShouldSetPanResponderCapture: () => false,
+        onPanResponderRelease: (_, g) => {
+          const { dx, dy } = g;
+          // Downward swipe (|dy| significantly greater than |dx|) → close.
+          if (dy > 120 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+            onClose();
+            return;
+          }
+          const threshold = Math.max(50, windowWidth * 0.12);
+          if (media.length > 1 && Math.abs(dx) > threshold) {
+            if (dx < 0) next();
+            else prev();
+          }
+        },
+        onPanResponderTerminationRequest: () => true,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editingCaption, index, media.length, windowWidth],
+  );
+
   if (!item) return null;
 
   const isCover = item.id === vehicle.coverPhotoId;
@@ -341,7 +373,10 @@ function Lightbox({
           </>
         ) : null}
 
-        <View style={lightboxStyles.imageWrap} pointerEvents="box-none">
+        <View
+          style={lightboxStyles.imageWrap}
+          pointerEvents="box-none"
+          {...(item.kind === 'photo' ? panResponder.panHandlers : {})}>
           {item.kind === 'video' ? (
             <LightboxVideo
               key={item.id}

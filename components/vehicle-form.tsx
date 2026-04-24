@@ -27,6 +27,7 @@ import {
 } from 'react-native';
 
 import { BuildSheetForm } from '@/components/build-sheet-form';
+import { DateField } from '@/components/date-field';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -589,11 +590,10 @@ export function VehicleForm({
           </Row>
           <Row>
             <Col>
-              <FormField
+              <DateField
                 label="Build Date"
                 value={builderDate}
                 onChangeText={setBuilderDate}
-                placeholder="YYYY-MM-DD"
               />
             </Col>
           </Row>
@@ -842,13 +842,12 @@ function ModificationsRepeater({
           />
           <Row>
             <Col>
-              <FormField
+              <DateField
                 label="Installed Date"
                 value={formatTimestampAsDate(mod.installedAt)}
                 onChangeText={(t) =>
                   update(i, { installedAt: parseDateToTimestamp(t) })
                 }
-                placeholder="YYYY-MM-DD"
               />
             </Col>
             <Col>
@@ -947,6 +946,21 @@ function OwnershipRepeater({
     next[index] = { ...next[index], ...patch };
     onChange(next);
   }
+  /**
+   * Mark one row as the current owner. Single-select — any other row with
+   * isCurrent flagged gets cleared so the detail page has an unambiguous
+   * answer to "who owns this today?"
+   */
+  function markCurrent(index: number) {
+    const next = value.map((entry, i) => ({
+      ...entry,
+      isCurrent: i === index ? true : undefined,
+    }));
+    onChange(next);
+  }
+  function clearCurrent(index: number) {
+    update(index, { isCurrent: undefined });
+  }
   function remove(index: number) {
     onChange(value.filter((_, i) => i !== index));
   }
@@ -956,6 +970,13 @@ function OwnershipRepeater({
     };
     onChange([...value, entry]);
   }
+
+  const currentOwner = value.find((e) => e.isCurrent);
+  const previousOwners = value.filter((e) => !e.isCurrent);
+  // "Most recent" previous owner = whichever non-current row has the latest
+  // relinquished date; fall back to latest acquired; finally fall back to
+  // the last entry in the list (usually the most recently added).
+  const mostRecentPrevious = pickMostRecentPrevious(previousOwners);
 
   if (value.length === 0) {
     return (
@@ -973,17 +994,70 @@ function OwnershipRepeater({
       {value.map((entry, i) => (
         <View
           key={entry.id}
-          style={[styles.repeaterRow, { borderColor: palette.border }]}>
+          style={[
+            styles.repeaterRow,
+            {
+              borderColor: entry.isCurrent ? palette.tint : palette.border,
+              borderWidth: entry.isCurrent ? 2 : 1,
+            },
+          ]}>
           <View style={styles.repeaterRowHeader}>
-            <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
-              Owner {i + 1}
-            </ThemedText>
+            <View style={styles.ownerHeaderLeft}>
+              <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+                Owner {i + 1}
+              </ThemedText>
+              {entry.isCurrent ? (
+                <View style={[styles.currentBadge, { backgroundColor: palette.tint }]}>
+                  <ThemedText
+                    type="metadata"
+                    style={{ color: '#fff', fontWeight: '700', letterSpacing: 1 }}>
+                    CURRENT
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
             <Pressable onPress={() => remove(i)} hitSlop={10}>
               <ThemedText type="metadata" style={{ color: palette.tint, fontWeight: '600' }}>
                 Remove
               </ThemedText>
             </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => (entry.isCurrent ? clearCurrent(i) : markCurrent(i))}
+            style={[
+              styles.currentToggle,
+              {
+                borderColor: entry.isCurrent ? palette.tint : palette.border,
+                backgroundColor: entry.isCurrent
+                  ? palette.tint
+                  : palette.surfaceDim,
+              },
+            ]}>
+            <View
+              style={[
+                styles.currentCheckbox,
+                {
+                  borderColor: entry.isCurrent ? '#fff' : palette.border,
+                  backgroundColor: entry.isCurrent ? '#fff' : 'transparent',
+                },
+              ]}>
+              {entry.isCurrent ? (
+                <ThemedText
+                  style={{ color: palette.tint, fontSize: 12, fontWeight: '700', lineHeight: 14 }}>
+                  ✓
+                </ThemedText>
+              ) : null}
+            </View>
+            <ThemedText
+              type="metadata"
+              style={{
+                color: entry.isCurrent ? '#fff' : palette.text,
+                fontWeight: '600',
+              }}>
+              Current owner
+            </ThemedText>
+          </Pressable>
 
           <FormField
             label="Owner Name"
@@ -993,23 +1067,21 @@ function OwnershipRepeater({
           />
           <Row>
             <Col>
-              <FormField
+              <DateField
                 label="Acquired"
                 value={formatTimestampAsDate(entry.acquiredAt)}
                 onChangeText={(t) =>
                   update(i, { acquiredAt: parseDateToTimestamp(t) })
                 }
-                placeholder="YYYY-MM-DD"
               />
             </Col>
             <Col>
-              <FormField
+              <DateField
                 label="Relinquished"
                 value={formatTimestampAsDate(entry.relinquishedAt)}
                 onChangeText={(t) =>
                   update(i, { relinquishedAt: parseDateToTimestamp(t) })
                 }
-                placeholder="YYYY-MM-DD"
               />
             </Col>
           </Row>
@@ -1057,8 +1129,85 @@ function OwnershipRepeater({
         </View>
       ))}
       <AddRowButton label="+ Add owner" onPress={add} palette={palette} />
+
+      {/* Live summary — mirrors what will render on the public detail page so
+          the owner can sanity-check their selection without saving first. */}
+      <View
+        style={[
+          styles.ownershipSummary,
+          { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+        ]}>
+        <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+          Summary
+        </ThemedText>
+        <View style={styles.ownershipSummaryRow}>
+          <ThemedText type="metadata" style={{ color: palette.textMuted, width: 90 }}>
+            Current
+          </ThemedText>
+          <ThemedText
+            type="metadata"
+            style={{
+              color: currentOwner ? palette.text : palette.placeholder,
+              flex: 1,
+              fontWeight: currentOwner ? '600' : '400',
+            }}>
+            {currentOwner
+              ? currentOwner.ownerName || '(unnamed)'
+              : 'No current owner selected'}
+          </ThemedText>
+        </View>
+        <View style={styles.ownershipSummaryRow}>
+          <ThemedText type="metadata" style={{ color: palette.textMuted, width: 90 }}>
+            Previous
+          </ThemedText>
+          <ThemedText
+            type="metadata"
+            style={{
+              color: mostRecentPrevious ? palette.text : palette.placeholder,
+              flex: 1,
+            }}>
+            {mostRecentPrevious
+              ? mostRecentPrevious.ownerName || '(unnamed)'
+              : '—'}
+          </ThemedText>
+        </View>
+      </View>
     </View>
   );
+}
+
+/**
+ * Pick the most recent previous owner from a list of ownership entries.
+ * Priority: latest relinquishedAt, then latest acquiredAt, then list order
+ * (last added wins). Returns undefined if the list is empty.
+ */
+function pickMostRecentPrevious(
+  previous: OwnershipEntry[],
+): OwnershipEntry | undefined {
+  if (previous.length === 0) return undefined;
+  const tsMillis = (ts: OwnershipEntry['acquiredAt']) => {
+    if (!ts) return 0;
+    try {
+      const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts as unknown as Date);
+      return d instanceof Date && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+    } catch {
+      return 0;
+    }
+  };
+  let best = previous[0];
+  let bestScore = -Infinity;
+  previous.forEach((entry, i) => {
+    const rel = tsMillis(entry.relinquishedAt);
+    const acq = tsMillis(entry.acquiredAt);
+    // Blend the two — relinquished wins if present, else acquired, else
+    // rely on the positional tiebreak so freshly-added rows still surface.
+    const score = rel || acq || i;
+    if (score >= bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  });
+  return best;
 }
 
 // ---------- Misc small components ----------
@@ -1290,6 +1439,46 @@ const styles = StyleSheet.create({
   repeaterRowHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ownerHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  currentBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+  },
+  currentToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
+  currentCheckbox: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownershipSummary: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 14,
+    gap: 8,
+    marginTop: 4,
+  },
+  ownershipSummaryRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   addRowButton: {
