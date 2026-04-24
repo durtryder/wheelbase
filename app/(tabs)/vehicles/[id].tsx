@@ -379,6 +379,18 @@ export default function VehicleDetailScreen() {
           />
         </View>
 
+        {v.story?.trim() ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">The Story</ThemedText>
+              <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+            </View>
+            <ThemedText type="default" style={styles.storyBody}>
+              {v.story.trim()}
+            </ThemedText>
+          </View>
+        ) : null}
+
         <Section title="Vehicle Overview" palette={palette}>
           <DetailRow label="Year" value={String(v.year)} palette={palette} />
           <DetailRow label="Make" value={v.make} palette={palette} />
@@ -1028,6 +1040,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: 16,
+  },
+  storyBody: {
+    fontSize: 17,
+    lineHeight: 28,
+    maxWidth: 680,
   },
   shareRow: {
     flexDirection: 'row',

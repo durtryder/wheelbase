@@ -9,9 +9,20 @@ type Props = Omit<TextInputProps, 'style'> & {
   required?: boolean;
 };
 
-export function FormField({ label, hint, required, ...rest }: Props) {
+export function FormField({ label, hint, required, multiline, numberOfLines, ...rest }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+
+  // When multiline, give the input a sensible minimum height derived from
+  // numberOfLines so it renders as a visible textarea. Growing beyond that
+  // happens automatically as the user types.
+  const multilineStyle = multiline
+    ? {
+        minHeight: 22 * (numberOfLines ?? 4) + 20,
+        textAlignVertical: 'top' as const,
+        paddingTop: 10,
+      }
+    : null;
 
   return (
     <View style={styles.wrap}>
@@ -21,6 +32,8 @@ export function FormField({ label, hint, required, ...rest }: Props) {
       </Text>
       <TextInput
         placeholderTextColor={palette.placeholder}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
         style={[
           styles.input,
           {
@@ -28,6 +41,7 @@ export function FormField({ label, hint, required, ...rest }: Props) {
             color: palette.text,
             backgroundColor: palette.surface,
           },
+          multilineStyle,
         ]}
         {...rest}
       />

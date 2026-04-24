@@ -25,6 +25,7 @@ export default function VehicleBuilderScreen() {
       trim: value.trim,
       nickname: value.nickname,
       vin: value.vin,
+      story: value.story,
       mileage: value.mileage,
       exteriorColor: value.exteriorColor,
       interiorColor: value.interiorColor,

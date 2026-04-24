@@ -26,6 +26,14 @@ export type Vehicle = {
   vin?: string;
   chassisNumber?: string;
 
+  /**
+   * Free-text narrative of this vehicle — where it came from, what it's been
+   * through, why it matters. Rendered as a "lede" paragraph near the top of
+   * the detail page. Plans to be AI-generated from service records eventually
+   * but can always be hand-written.
+   */
+  story?: string;
+
   // Spec (user-authored, can be seeded from oemSpecs)
   bodyStyle?: BodyStyle;
   exteriorColor?: string;

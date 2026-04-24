@@ -55,6 +55,7 @@ export type VehicleFormValue = {
   trim?: string;
   nickname?: string;
   vin?: string;
+  story?: string;
   mileage?: number;
   exteriorColor?: string;
   interiorColor?: string;
@@ -148,6 +149,7 @@ export function VehicleForm({
   const [model, setModel] = useState(initialValue?.model ?? '');
   const [trim, setTrim] = useState(initialValue?.trim ?? '');
   const [nickname, setNickname] = useState(initialValue?.nickname ?? '');
+  const [story, setStory] = useState(initialValue?.story ?? '');
   const [mileage, setMileage] = useState(
     initialValue?.mileage != null ? String(initialValue.mileage) : '',
   );
@@ -356,6 +358,7 @@ export function VehicleForm({
         trim: trim.trim() || undefined,
         nickname: nickname.trim() || undefined,
         vin: vin.trim() || undefined,
+        story: story.trim() || undefined,
         mileage: parseIntOrUndefined(mileage),
         exteriorColor: exteriorColor.trim() || undefined,
         interiorColor: interiorColor.trim() || undefined,
@@ -538,6 +541,23 @@ export function VehicleForm({
               />
             </Col>
           </Row>
+        </Section>
+
+        {/* ========== Vehicle Story ========== */}
+        <Section title="Vehicle Story" palette={palette}>
+          <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+            A short narrative — where the car came from, what it&apos;s been
+            through, why it matters. Will eventually be seeded from your
+            service records; for now, write or paste as you like.
+          </ThemedText>
+          <FormField
+            label="Story"
+            value={story}
+            onChangeText={setStory}
+            placeholder="Known history, memorable events, ownership chain highlights, anything worth telling."
+            multiline
+            numberOfLines={10}
+          />
         </Section>
 
         {/* ========== Vehicle Details ========== */}
