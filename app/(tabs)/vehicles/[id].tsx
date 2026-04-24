@@ -873,63 +873,11 @@ function VehicleDetailsSection({
             Ownership History
           </ThemedText>
 
-          {/* Snapshot line — answers "who has it, who had it last" without
-              making the reader scan a list. Hidden when no isCurrent flag
-              is set (older records that predate this field). */}
-          {(() => {
-            const current = owners.find((o) => o.isCurrent);
-            const previous = owners.filter((o) => !o.isCurrent);
-            const prev = pickMostRecentPreviousForDisplay(previous);
-            if (!current && !prev) return null;
-            return (
-              <View
-                style={[
-                  styles.ownershipSnapshot,
-                  { borderColor: palette.border, backgroundColor: palette.surfaceDim },
-                ]}>
-                {current ? (
-                  <View style={styles.ownershipSnapshotRow}>
-                    <ThemedText
-                      type="eyebrow"
-                      style={{ color: palette.textMuted, width: 96 }}>
-                      Current
-                    </ThemedText>
-                    <ThemedText
-                      type="defaultSemiBold"
-                      style={{ color: palette.text, flex: 1 }}>
-                      {current.ownerName || '(unnamed)'}
-                      {formatLocation(current.location)
-                        ? `  ·  ${formatLocation(current.location)}`
-                        : ''}
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {prev ? (
-                  <View style={styles.ownershipSnapshotRow}>
-                    <ThemedText
-                      type="eyebrow"
-                      style={{ color: palette.textMuted, width: 96 }}>
-                      Previous
-                    </ThemedText>
-                    <ThemedText
-                      type="default"
-                      style={{ color: palette.textMuted, flex: 1 }}>
-                      {prev.ownerName || '(unnamed)'}
-                      {formatLocation(prev.location)
-                        ? `  ·  ${formatLocation(prev.location)}`
-                        : ''}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })()}
-
-          <View style={styles.buildCards}>
-            {owners.map((o) => (
-              <OwnershipCard key={o.id} entry={o} palette={palette} />
-            ))}
-          </View>
+          {/* Single consolidated panel — current owner up top, previous
+              owners listed underneath in reverse-chronological order.
+              Replaces the prior repeating cards which surfaced the same
+              info twice. */}
+          <OwnershipPanel owners={owners} palette={palette} />
         </View>
       ) : null}
     </View>
@@ -964,12 +912,85 @@ function ModificationCard({ mod, palette }: { mod: Modification; palette: Palett
   );
 }
 
-function OwnershipCard({
+/**
+ * Single-panel ownership history. Current owner sits up top with a
+ * CURRENT badge; previous owners follow in reverse chronological order
+ * (most recently relinquished first). Each entry is a tight three-line
+ * block — name, span+location, optional notes — separated by hairlines
+ * so the whole thing reads like a stewardship register rather than a
+ * stack of cards.
+ */
+function OwnershipPanel({
+  owners,
+  palette,
+}: {
+  owners: OwnershipEntry[];
+  palette: Palette;
+}) {
+  const current = owners.find((o) => o.isCurrent);
+  const previous = sortPreviousOwnersByRecency(
+    owners.filter((o) => !o.isCurrent),
+  );
+
+  return (
+    <View
+      style={[
+        styles.ownershipPanel,
+        { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+      ]}>
+      {current ? (
+        <OwnershipPanelEntry
+          entry={current}
+          palette={palette}
+          eyebrow="Current"
+          eyebrowColor={palette.tint}
+        />
+      ) : null}
+
+      {current && previous.length > 0 ? (
+        <View
+          style={[
+            styles.ownershipPanelDivider,
+            { backgroundColor: palette.border },
+          ]}
+        />
+      ) : null}
+
+      {previous.length > 0 ? (
+        <ThemedText
+          type="eyebrow"
+          style={{ color: palette.textMuted, marginBottom: 4 }}>
+          {current ? 'Previous owners' : 'Owners'}
+        </ThemedText>
+      ) : null}
+
+      {previous.map((entry, i) => (
+        <View key={entry.id}>
+          <OwnershipPanelEntry entry={entry} palette={palette} />
+          {i < previous.length - 1 ? (
+            <View
+              style={[
+                styles.ownershipEntryDivider,
+                { backgroundColor: palette.border },
+              ]}
+            />
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function OwnershipPanelEntry({
   entry,
   palette,
+  eyebrow,
+  eyebrowColor,
 }: {
   entry: OwnershipEntry;
   palette: Palette;
+  eyebrow?: string;
+  eyebrowColor?: string;
 }) {
   const acquired = formatDate(entry.acquiredAt);
   const relinquished = formatDate(entry.relinquishedAt);
@@ -985,35 +1006,31 @@ function OwnershipCard({
   const subline = [span, loc].filter(Boolean).join('  ·  ');
 
   return (
-    <View
-      style={[
-        styles.buildCard,
-        {
-          borderColor: entry.isCurrent ? palette.tint : palette.border,
-          borderWidth: entry.isCurrent ? 2 : 1,
-        },
-      ]}>
-      <View style={styles.ownerCardHeader}>
-        <ThemedText type="defaultSemiBold" style={{ flexShrink: 1 }}>
-          {entry.ownerName || '(Unnamed owner)'}
+    <View style={styles.ownershipEntry}>
+      {eyebrow ? (
+        <ThemedText
+          type="eyebrow"
+          style={{
+            color: eyebrowColor ?? palette.textMuted,
+            marginBottom: 4,
+          }}>
+          {eyebrow}
         </ThemedText>
-        {entry.isCurrent ? (
-          <View style={[styles.currentBadgeRead, { backgroundColor: palette.tint }]}>
-            <ThemedText
-              type="metadata"
-              style={{ color: '#fff', fontWeight: '700', letterSpacing: 1 }}>
-              CURRENT
-            </ThemedText>
-          </View>
-        ) : null}
-      </View>
+      ) : null}
+      <ThemedText type="defaultSemiBold">
+        {entry.ownerName || '(Unnamed owner)'}
+      </ThemedText>
       {subline ? (
-        <ThemedText type="metadata" style={{ color: palette.textMuted, marginTop: 6 }}>
+        <ThemedText
+          type="metadata"
+          style={{ color: palette.textMuted, marginTop: 4 }}>
           {subline}
         </ThemedText>
       ) : null}
       {entry.notes ? (
-        <ThemedText type="default" style={{ color: palette.textMuted, marginTop: 6 }}>
+        <ThemedText
+          type="default"
+          style={{ color: palette.textMuted, marginTop: 6 }}>
           {entry.notes}
         </ThemedText>
       ) : null}
@@ -1022,14 +1039,13 @@ function OwnershipCard({
 }
 
 /**
- * Mirror of the vehicle-form's `pickMostRecentPrevious` for the read-side
- * ownership snapshot. Priority: latest relinquishedAt, then latest
- * acquiredAt, then list order (last entry in the array wins).
+ * Sort previous owners newest-stewardship-first. Priority: latest
+ * relinquishedAt, then latest acquiredAt, then array order (so freshly
+ * added rows still surface at the top).
  */
-function pickMostRecentPreviousForDisplay(
+function sortPreviousOwnersByRecency(
   previous: OwnershipEntry[],
-): OwnershipEntry | undefined {
-  if (previous.length === 0) return undefined;
+): OwnershipEntry[] {
   const tsMillis = (ts: OwnershipEntry['acquiredAt']) => {
     if (!ts) return 0;
     try {
@@ -1039,18 +1055,18 @@ function pickMostRecentPreviousForDisplay(
       return 0;
     }
   };
-  let best = previous[0];
-  let bestScore = -Infinity;
-  previous.forEach((entry, i) => {
-    const rel = tsMillis(entry.relinquishedAt);
-    const acq = tsMillis(entry.acquiredAt);
-    const score = rel || acq || i;
-    if (score >= bestScore) {
-      bestScore = score;
-      best = entry;
-    }
-  });
-  return best;
+  return [...previous]
+    .map((entry, i) => ({
+      entry,
+      score:
+        tsMillis(entry.relinquishedAt) ||
+        tsMillis(entry.acquiredAt) ||
+        // Late-added rows (no dates) keep their relative input order
+        // by falling back to the original array index.
+        previous.length - i,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ entry }) => entry);
 }
 
 function formatDate(ts: Modification['installedAt']): string | undefined {
@@ -1191,29 +1207,24 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 16,
   },
-  ownerCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  currentBadgeRead: {
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-  },
-  ownershipSnapshot: {
+  ownershipPanel: {
     borderWidth: 1,
     borderRadius: 6,
-    padding: 14,
-    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     marginTop: 6,
-    marginBottom: 4,
   },
-  ownershipSnapshotRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  ownershipEntry: {
+    paddingVertical: 4,
+  },
+  ownershipPanelDivider: {
+    height: 1,
+    marginVertical: 14,
+  },
+  ownershipEntryDivider: {
+    height: 1,
+    marginVertical: 12,
+    opacity: 0.6,
   },
   storyBody: {
     fontSize: 17,
