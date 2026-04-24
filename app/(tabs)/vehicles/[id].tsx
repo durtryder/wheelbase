@@ -315,12 +315,12 @@ export default function VehicleDetailScreen() {
           <Pressable
             onPress={() => router.push(`/u/${v.ownerId}`)}
             style={({ hovered }) => [
-              { marginTop: 4 },
+              { marginTop: 2, alignSelf: 'flex-start' },
               hovered ? ({ cursor: 'pointer' } as object) : null,
             ]}>
             <ThemedText
               type="metadata"
-              style={{ color: palette.textMuted, textAlign: 'center' }}>
+              style={{ color: palette.textMuted }}>
               by{' '}
               <ThemedText
                 type="metadata"
@@ -340,7 +340,11 @@ export default function VehicleDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.headlineStats}>
+        <View
+          style={[
+            styles.headlineStats,
+            { borderColor: palette.border },
+          ]}>
           <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
           <HeadlineDivider color={palette.border} />
           <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
@@ -916,11 +920,11 @@ function formatCategory(c: Modification['category']): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingTop: 48,
-    paddingBottom: 64,
-    gap: 28,
-    maxWidth: 900,
+    paddingBottom: 72,
+    gap: 40,
+    maxWidth: 920,
     width: '100%',
     alignSelf: 'center',
   },
@@ -931,9 +935,9 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
   },
   hero: {
-    aspectRatio: 16 / 9,
+    aspectRatio: 3 / 2,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -943,30 +947,34 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   titleBlock: {
-    gap: 8,
-    alignItems: 'center',
+    gap: 10,
+    alignItems: 'flex-start',
   },
   rule: {
-    width: 40,
+    width: 56,
     height: 2,
-    marginTop: 6,
+    marginTop: 10,
+    marginBottom: 4,
   },
   headlineStats: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    paddingVertical: 6,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
   },
   headlineStat: {
     flex: 1,
     alignItems: 'flex-start',
+    paddingVertical: 4,
   },
   headlineDivider: {
     width: 1,
     alignSelf: 'stretch',
-    marginHorizontal: 14,
+    marginHorizontal: 18,
   },
   section: {
-    gap: 14,
+    gap: 16,
   },
   sectionHeader: {
     gap: 10,
@@ -1004,9 +1012,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 10,
+    marginTop: 4,
     flexWrap: 'wrap',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   pill: {
     paddingVertical: 5,
