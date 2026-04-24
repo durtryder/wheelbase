@@ -144,15 +144,16 @@ export function MediaGallery({
             onPress={() => setExpanded(true)}
             style={({ hovered, pressed }) => [
               styles.showMoreButton,
+              { borderColor: palette.border },
               {
                 opacity: pressed ? 0.75 : 1,
                 ...(hovered ? ({ cursor: 'pointer' } as object) : {}),
               },
             ]}>
-            <Text style={styles.showMoreText}>
+            <Text style={[styles.showMoreText, { color: palette.text }]}>
               Show all {media.length} · {hiddenCount} more
             </Text>
-            <Text style={styles.showMoreChevron}>⌄</Text>
+            <Text style={[styles.showMoreChevron, { color: palette.text }]}>⌄</Text>
           </Pressable>
         </View>
       ) : null}
@@ -774,6 +775,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 18,
   },
+  // Pill sits under the 3-row wall against the page's light editorial
+  // ground — border + text pick up palette colors at call time so the
+  // treatment stays consistent with the rest of the UI rather than
+  // borrowing the lightbox's gold-on-black accents.
   showMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -781,18 +786,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: 'rgba(244, 228, 188, 0.35)',
     borderRadius: 999,
   },
   showMoreText: {
-    color: '#f4e4bc',
     fontSize: 12,
     fontFamily: Fonts.sans.bold,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   showMoreChevron: {
-    color: '#f4e4bc',
     fontSize: 18,
     lineHeight: 16,
     marginTop: -4,

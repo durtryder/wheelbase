@@ -447,15 +447,13 @@ export default function VehicleDetailScreen() {
         <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
 
         {/* Photos & Videos — promoted above Build Sheet so the visual
-            story leads, and framed against a near-black backdrop that
-            echoes the lightbox aesthetic. Keeps the section consistent
-            with how we present media everywhere else in the app. */}
-        <View style={styles.mediaSection}>
+            story leads. Sits on the editorial light background; the
+            near-black treatment is reserved for the lightbox, where a
+            dark ground makes the imagery itself pop. */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText type="subtitle" style={{ color: '#f4e4bc' }}>
-                Photos &amp; Videos
-              </ThemedText>
+              <ThemedText type="subtitle">Photos &amp; Videos</ThemedText>
               {isOwner ? (
                 <Pressable
                   onPress={handleAddMedia}
@@ -474,11 +472,11 @@ export default function VehicleDetailScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <View style={[styles.sectionRule, { backgroundColor: '#3a3730' }]} />
+            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
           </View>
 
           {uploadProgress ? (
-            <ThemedText type="metadata" style={{ color: '#bbb5a6' }}>
+            <ThemedText type="metadata" style={{ color: palette.textMuted }}>
               Uploading {uploadProgress.current} of {uploadProgress.total}
               {uploadProgress.totalBytes > 0
                 ? ` · ${formatBytes(uploadProgress.uploaded)} / ${formatBytes(
@@ -489,13 +487,13 @@ export default function VehicleDetailScreen() {
           ) : null}
 
           {mediaError ? (
-            <ThemedText type="metadata" style={{ color: '#ff8080' }}>
+            <ThemedText type="metadata" style={{ color: palette.tint }}>
               {mediaError}
             </ThemedText>
           ) : null}
 
           {media.length === 0 ? (
-            <ThemedText type="metadata" style={{ color: '#8b867a' }}>
+            <ThemedText type="metadata" style={{ color: palette.placeholder }}>
               {isOwner
                 ? 'No media yet. Add photos or videos to bring this build to life.'
                 : 'No media yet.'}
@@ -1160,17 +1158,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 16,
-  },
-  mediaSection: {
-    gap: 16,
-    // Near-black so white and off-white accents from the lightbox's
-    // visual language carry over to the wall view. Slightly softer than
-    // pure #000 so the gallery thumbs' own #111 backgrounds register
-    // as a faint contour rather than vanishing.
-    backgroundColor: '#0c0c0c',
-    borderRadius: 10,
-    padding: 20,
-    marginHorizontal: -4,
   },
   sectionHeader: {
     gap: 10,
