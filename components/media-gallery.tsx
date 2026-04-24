@@ -18,6 +18,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -81,7 +82,7 @@ export function MediaGallery({
     Math.min(900, windowWidth - 48),
   );
   const [internalIndex, setInternalIndex] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [fullGalleryOpen, setFullGalleryOpen] = useState(false);
   const controlled = openIndex !== undefined;
   const lightboxIndex = controlled ? (openIndex ?? null) : internalIndex;
   const setLightboxIndex = (idx: number | null) => {
@@ -97,11 +98,14 @@ export function MediaGallery({
     [media, containerWidth, targetRowHeight],
   );
 
+  // The detail page always shows at most `collapsedRowLimit` rows — tapping
+  // Show More opens a separate full-screen dark modal rather than expanding
+  // in place. Keeps the editorial page tidy and lets the full wall live
+  // against the same black ground as the lightbox.
   const canCollapse =
     Number.isFinite(collapsedRowLimit) && rows.length > collapsedRowLimit;
-  const visibleRows =
-    canCollapse && !expanded ? rows.slice(0, collapsedRowLimit) : rows;
-  const hiddenCount = canCollapse && !expanded
+  const visibleRows = canCollapse ? rows.slice(0, collapsedRowLimit) : rows;
+  const hiddenCount = canCollapse
     ? rows.slice(collapsedRowLimit).reduce((sum, r) => sum + r.items.length, 0)
     : 0;
 
@@ -138,10 +142,10 @@ export function MediaGallery({
         </View>
       ))}
 
-      {canCollapse && !expanded ? (
+      {canCollapse ? (
         <View style={styles.showMoreWrap}>
           <Pressable
-            onPress={() => setExpanded(true)}
+            onPress={() => setFullGalleryOpen(true)}
             style={({ hovered, pressed }) => [
               styles.showMoreButton,
               { borderColor: palette.border },
@@ -156,6 +160,16 @@ export function MediaGallery({
             <Text style={[styles.showMoreChevron, { color: palette.text }]}>⌄</Text>
           </Pressable>
         </View>
+      ) : null}
+
+      {fullGalleryOpen ? (
+        <FullGalleryModal
+          media={media}
+          vehicle={vehicle}
+          onClose={() => setFullGalleryOpen(false)}
+          onOpenLightbox={(idx) => setLightboxIndex(idx)}
+          palette={palette}
+        />
       ) : null}
 
       {lightboxIndex !== null ? (
@@ -173,6 +187,110 @@ export function MediaGallery({
         />
       ) : null}
     </View>
+  );
+}
+
+// ---------- Full gallery modal ----------
+
+/**
+ * Fullscreen dark overlay showing every media item in one scrollable
+ * justified grid. Tapping a thumbnail opens the lightbox on top — the
+ * user can dismiss the lightbox and stay in the full gallery, then
+ * dismiss the gallery to return to the vehicle detail page.
+ */
+function FullGalleryModal({
+  media,
+  vehicle,
+  onClose,
+  onOpenLightbox,
+  palette,
+}: {
+  media: MediaItem[];
+  vehicle: Vehicle;
+  onClose: () => void;
+  onOpenLightbox: (index: number) => void;
+  palette: Palette;
+}) {
+  const { width: windowWidth } = useWindowDimensions();
+  // Reserve a bit of horizontal padding on every device so thumbs never
+  // butt against the screen edge. Tighter on narrow screens.
+  const horizontalPadding = windowWidth < 640 ? 12 : 24;
+  const gridWidth = Math.max(0, windowWidth - horizontalPadding * 2);
+  // The fullscreen gallery wants larger thumbs than the inline preview —
+  // give each row more height so photography can breathe.
+  const targetRowHeight = windowWidth < 640 ? 180 : 260;
+
+  const rows = useMemo(
+    () => justifyGrid(media, gridWidth, targetRowHeight, GAP),
+    [media, gridWidth, targetRowHeight],
+  );
+
+  // Escape to close (web only).
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent>
+      <View style={fullGalleryStyles.backdrop}>
+        <View style={fullGalleryStyles.topBar}>
+          <View style={fullGalleryStyles.topBarLeft}>
+            <Text style={fullGalleryStyles.topBarEyebrow}>
+              {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
+            </Text>
+            <Text style={fullGalleryStyles.topBarCount}>
+              {media.length} {media.length === 1 ? 'photo' : 'photos'}
+            </Text>
+          </View>
+          <Pressable onPress={onClose} style={fullGalleryStyles.closeButton}>
+            <Text style={fullGalleryStyles.closeButtonText}>Close</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[
+            fullGalleryStyles.scrollContent,
+            { paddingHorizontal: horizontalPadding },
+          ]}
+          showsVerticalScrollIndicator={false}>
+          {rows.map((row, rowIdx) => (
+            <View
+              key={rowIdx}
+              style={[
+                styles.row,
+                { marginBottom: rowIdx === rows.length - 1 ? 0 : GAP },
+              ]}>
+              {row.items.map((item, itemIdx) => {
+                const isCover = item.id === vehicle.coverPhotoId;
+                const mediaIndex = media.findIndex((m) => m.id === item.id);
+                return (
+                  <Thumbnail
+                    key={item.id}
+                    item={item}
+                    width={item.width}
+                    height={item.height}
+                    isCover={isCover}
+                    onOpen={() => onOpenLightbox(mediaIndex)}
+                    palette={palette}
+                    marginRight={itemIdx === row.items.length - 1 ? 0 : GAP}
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -798,6 +916,59 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 16,
     marginTop: -4,
+  },
+});
+
+const fullGalleryStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    // Near-black (same recipe as the lightbox) so the wall view reads
+    // as "same universe" when the user transitions from Show More.
+    backgroundColor: '#0c0c0c',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 14,
+    gap: 12,
+  },
+  topBarLeft: {
+    flexShrink: 1,
+  },
+  topBarEyebrow: {
+    color: '#f4e4bc',
+    fontSize: 13,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  topBarCount: {
+    color: '#bbb5a6',
+    fontSize: 11,
+    fontFamily: Fonts.sans.semibold,
+    letterSpacing: 1.2,
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  closeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#3a3730',
+    borderRadius: 999,
+  },
+  closeButtonText: {
+    color: '#f4e4bc',
+    fontSize: 12,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  scrollContent: {
+    paddingBottom: 48,
   },
 });
 
