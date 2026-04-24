@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { useBreakpoints } from '@/hooks/use-breakpoints';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   deleteMediaItem,
@@ -38,6 +39,7 @@ export default function VehicleDetailScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { user } = useAuth();
+  const { isNarrow } = useBreakpoints();
 
   const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -361,23 +363,49 @@ export default function VehicleDetailScreen() {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.headlineStats,
-            { borderColor: palette.border },
-          ]}>
-          <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
-          <HeadlineDivider color={palette.border} />
-          <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
-          <HeadlineDivider color={palette.border} />
-          <HeadlineStat label="Interior" value={v.interiorColor ?? '—'} palette={palette} />
-          <HeadlineDivider color={palette.border} />
-          <HeadlineStat
-            label="Location"
-            value={formatLocation(v.location) ?? '—'}
-            palette={palette}
-          />
-        </View>
+        {isNarrow ? (
+          // Narrow: 2×2 grid with thin hairlines, avoids cramped 4-col row.
+          <View
+            style={[
+              styles.headlineStats,
+              { borderColor: palette.border, flexWrap: 'wrap', gap: 0 },
+            ]}>
+            <View style={styles.headlineStatCell}>
+              <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
+            </View>
+            <View style={styles.headlineStatCell}>
+              <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
+            </View>
+            <View style={styles.headlineStatCell}>
+              <HeadlineStat label="Interior" value={v.interiorColor ?? '—'} palette={palette} />
+            </View>
+            <View style={styles.headlineStatCell}>
+              <HeadlineStat
+                label="Location"
+                value={formatLocation(v.location) ?? '—'}
+                palette={palette}
+              />
+            </View>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.headlineStats,
+              { borderColor: palette.border },
+            ]}>
+            <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
+            <HeadlineDivider color={palette.border} />
+            <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
+            <HeadlineDivider color={palette.border} />
+            <HeadlineStat label="Interior" value={v.interiorColor ?? '—'} palette={palette} />
+            <HeadlineDivider color={palette.border} />
+            <HeadlineStat
+              label="Location"
+              value={formatLocation(v.location) ?? '—'}
+              palette={palette}
+            />
+          </View>
+        )}
 
         {v.story?.trim() ? (
           <View style={styles.section}>
@@ -953,14 +981,16 @@ function formatCategory(c: Modification['category']): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
-    paddingHorizontal: 28,
-    paddingTop: 48,
-    paddingBottom: 72,
-    gap: 40,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 64,
+    gap: 32,
     maxWidth: 920,
     width: '100%',
     alignSelf: 'center',
   },
+  // Mobile adjustments live alongside the wide styles; narrow-specific
+  // overrides are applied inline via the isNarrow flag where it matters.
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -1000,6 +1030,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-start',
     paddingVertical: 4,
+  },
+  headlineStatCell: {
+    // 2-per-row on narrow, with a bit of vertical padding so both rows
+    // breathe. flexBasis lets 2 cells fit per row even under flexWrap.
+    flexBasis: '50%',
+    paddingVertical: 8,
+    paddingRight: 12,
   },
   headlineDivider: {
     width: 1,
@@ -1078,6 +1115,7 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'space-between',
     marginTop: 8,
+    flexWrap: 'wrap',
   },
   ownerActions: {
     flexDirection: 'row',

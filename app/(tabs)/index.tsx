@@ -153,9 +153,9 @@ function Centered({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 64,
+    paddingHorizontal: 20,
+    paddingTop: 36,
+    paddingBottom: 56,
     gap: 24,
     maxWidth: 1024,
     width: '100%',
