@@ -193,10 +193,14 @@ export function MediaGallery({
 // ---------- Full gallery modal ----------
 
 /**
- * Fullscreen dark overlay showing every media item in one scrollable
- * justified grid. Tapping a thumbnail opens the lightbox on top — the
- * user can dismiss the lightbox and stay in the full gallery, then
- * dismiss the gallery to return to the vehicle detail page.
+ * Fullscreen dark overlay modeled on echeng.com's "photo of the day"
+ * pattern: the cover photo gets hero treatment at the top with its
+ * metadata beside (or below, on narrow screens), and the remaining
+ * media flows in a justified grid underneath.
+ *
+ * Tapping any photo — hero or tile — opens the lightbox on top. The
+ * user can dismiss the lightbox to keep browsing, then dismiss the
+ * wall to return to the detail page. Escape closes on web.
  */
 function FullGalleryModal({
   media,
@@ -216,14 +220,51 @@ function FullGalleryModal({
   // butt against the screen edge. Tighter on narrow screens.
   const horizontalPadding = windowWidth < 640 ? 12 : 24;
   const gridWidth = Math.max(0, windowWidth - horizontalPadding * 2);
+  const isWide = windowWidth >= 900;
   // The fullscreen gallery wants larger thumbs than the inline preview —
   // give each row more height so photography can breathe.
-  const targetRowHeight = windowWidth < 640 ? 180 : 260;
+  const targetRowHeight = windowWidth < 640 ? 160 : 220;
+
+  // Pick the vehicle's chosen cover; fall back to first media item if
+  // no cover has been designated (e.g., videos-only vehicle).
+  const heroItem = useMemo(
+    () =>
+      media.find((m) => m.id === vehicle.coverPhotoId) ?? media[0] ?? null,
+    [media, vehicle.coverPhotoId],
+  );
+  const heroIndex = heroItem
+    ? media.findIndex((m) => m.id === heroItem.id)
+    : -1;
+  const restMedia = useMemo(
+    () => (heroItem ? media.filter((m) => m.id !== heroItem.id) : media),
+    [media, heroItem],
+  );
 
   const rows = useMemo(
-    () => justifyGrid(media, gridWidth, targetRowHeight, GAP),
-    [media, gridWidth, targetRowHeight],
+    () => justifyGrid(restMedia, gridWidth, targetRowHeight, GAP),
+    [restMedia, gridWidth, targetRowHeight],
   );
+
+  // Hero layout: echeng-style 7:3 split on wide, stacked on narrow.
+  // Heights are generous so the image reads as a true hero without
+  // eating the whole viewport.
+  const heroPhotoWidth = isWide
+    ? Math.round(gridWidth * 0.68)
+    : gridWidth;
+  const heroPhotoHeight = isWide
+    ? Math.min(540, Math.round(windowWidth * 0.42))
+    : Math.min(400, Math.round(windowWidth * 0.65));
+  const heroMetaWidth = isWide
+    ? Math.max(0, gridWidth - heroPhotoWidth - 24)
+    : gridWidth;
+
+  const heroIsCover = heroItem?.id === vehicle.coverPhotoId;
+  const heroDate = heroItem ? formatDateForItem(heroItem) : null;
+  const heroCamera = heroItem ? formatCameraLine(heroItem.exif) : null;
+  const heroExposure = heroItem ? formatExposureLine(heroItem.exif) : null;
+  const heroVehicleTitle = [vehicle.year, vehicle.make, vehicle.model]
+    .filter(Boolean)
+    .join(' ');
 
   // Escape to close (web only).
   useEffect(() => {
@@ -246,7 +287,7 @@ function FullGalleryModal({
         <View style={fullGalleryStyles.topBar}>
           <View style={fullGalleryStyles.topBarLeft}>
             <Text style={fullGalleryStyles.topBarEyebrow}>
-              {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
+              {heroVehicleTitle || 'Gallery'}
             </Text>
             <Text style={fullGalleryStyles.topBarCount}>
               {media.length} {media.length === 1 ? 'photo' : 'photos'}
@@ -263,31 +304,118 @@ function FullGalleryModal({
             { paddingHorizontal: horizontalPadding },
           ]}
           showsVerticalScrollIndicator={false}>
-          {rows.map((row, rowIdx) => (
+          {heroItem ? (
             <View
-              key={rowIdx}
               style={[
-                styles.row,
-                { marginBottom: rowIdx === rows.length - 1 ? 0 : GAP },
+                fullGalleryStyles.hero,
+                isWide ? fullGalleryStyles.heroRow : fullGalleryStyles.heroCol,
               ]}>
-              {row.items.map((item, itemIdx) => {
-                const isCover = item.id === vehicle.coverPhotoId;
-                const mediaIndex = media.findIndex((m) => m.id === item.id);
-                return (
-                  <Thumbnail
-                    key={item.id}
-                    item={item}
-                    width={item.width}
-                    height={item.height}
-                    isCover={isCover}
-                    onOpen={() => onOpenLightbox(mediaIndex)}
-                    palette={palette}
-                    marginRight={itemIdx === row.items.length - 1 ? 0 : GAP}
+              <Pressable
+                onPress={() =>
+                  heroIndex >= 0 ? onOpenLightbox(heroIndex) : null
+                }
+                style={({ hovered, pressed }) => [
+                  {
+                    width: heroPhotoWidth,
+                    height: heroPhotoHeight,
+                    backgroundColor: '#050505',
+                    opacity: pressed ? 0.95 : 1,
+                    ...(hovered ? ({ cursor: 'pointer' } as object) : {}),
+                  },
+                ]}>
+                {heroItem.kind === 'video' ? (
+                  <VideoThumbnailSurface item={heroItem} />
+                ) : (
+                  <Image
+                    source={{ uri: heroItem.downloadUrl }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                    transition={250}
                   />
-                );
-              })}
+                )}
+                {heroItem.kind === 'video' ? (
+                  <View style={styles.playOverlay} pointerEvents="none">
+                    <View style={styles.playButton}>
+                      <Text style={styles.playIcon}>▶</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </Pressable>
+
+              <View
+                style={[
+                  fullGalleryStyles.heroMeta,
+                  { width: heroMetaWidth },
+                  isWide ? null : fullGalleryStyles.heroMetaStacked,
+                ]}>
+                <Text style={fullGalleryStyles.heroEyebrow}>
+                  {heroIsCover ? 'Cover photo' : 'Featured'}
+                </Text>
+                {heroItem.caption ? (
+                  <Text style={fullGalleryStyles.heroTitle}>
+                    {heroItem.caption}
+                  </Text>
+                ) : (
+                  <Text style={fullGalleryStyles.heroTitle}>
+                    {heroVehicleTitle || 'Gallery'}
+                  </Text>
+                )}
+                {heroItem.caption && heroVehicleTitle ? (
+                  <Text style={fullGalleryStyles.heroBody}>
+                    {heroVehicleTitle}
+                  </Text>
+                ) : null}
+                {heroDate ? (
+                  <Text style={fullGalleryStyles.heroMetaLine}>{heroDate}</Text>
+                ) : null}
+                {heroCamera ? (
+                  <Text style={fullGalleryStyles.heroMetaLine}>
+                    {heroCamera}
+                  </Text>
+                ) : null}
+                {heroExposure ? (
+                  <Text style={fullGalleryStyles.heroMetaLine}>
+                    {heroExposure}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          ))}
+          ) : null}
+
+          {restMedia.length > 0 ? (
+            <View style={fullGalleryStyles.gridBlock}>
+              <Text style={fullGalleryStyles.gridEyebrow}>
+                {restMedia.length === 1
+                  ? '1 more photo'
+                  : `${restMedia.length} more photos`}
+              </Text>
+              {rows.map((row, rowIdx) => (
+                <View
+                  key={rowIdx}
+                  style={[
+                    styles.row,
+                    { marginBottom: rowIdx === rows.length - 1 ? 0 : GAP },
+                  ]}>
+                  {row.items.map((item, itemIdx) => {
+                    const isCover = item.id === vehicle.coverPhotoId;
+                    const mediaIndex = media.findIndex((m) => m.id === item.id);
+                    return (
+                      <Thumbnail
+                        key={item.id}
+                        item={item}
+                        width={item.width}
+                        height={item.height}
+                        isCover={isCover}
+                        onOpen={() => onOpenLightbox(mediaIndex)}
+                        palette={palette}
+                        marginRight={itemIdx === row.items.length - 1 ? 0 : GAP}
+                      />
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </Modal>
@@ -969,6 +1097,68 @@ const fullGalleryStyles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 48,
+  },
+  hero: {
+    marginBottom: 36,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 24,
+  },
+  heroCol: {
+    flexDirection: 'column',
+    gap: 16,
+  },
+  heroMeta: {
+    paddingVertical: 18,
+    paddingRight: 12,
+    gap: 10,
+    justifyContent: 'center',
+  },
+  heroMetaStacked: {
+    // Narrow screens: metadata sits below the photo with a bit less
+    // vertical padding so the sheet doesn't feel oversized on a phone.
+    paddingVertical: 6,
+    paddingRight: 0,
+  },
+  heroEyebrow: {
+    color: '#f4e4bc',
+    fontSize: 11,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: '#f4e4bc',
+    fontSize: 22,
+    lineHeight: 30,
+    fontFamily: Fonts.sans.semibold,
+    marginTop: 4,
+  },
+  heroBody: {
+    color: '#bbb5a6',
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: Fonts.sans.regular,
+  },
+  heroMetaLine: {
+    color: '#8b867a',
+    fontSize: 12,
+    lineHeight: 18,
+    letterSpacing: 0.6,
+    fontFamily: Fonts.sans.regular,
+  },
+  gridBlock: {
+    gap: 14,
+  },
+  gridEyebrow: {
+    color: '#8b867a',
+    fontSize: 11,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
 });
 
