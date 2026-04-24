@@ -31,11 +31,6 @@ export default function FeedScreen() {
         <View style={styles.titleBlock}>
           <ThemedText type="title">Community Builds</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
-          <ThemedText
-            type="metadata"
-            style={{ color: palette.textMuted, textAlign: 'center' }}>
-            Every vehicle marked Public by its owner shows up here.
-          </ThemedText>
         </View>
 
         {error ? (
