@@ -19,7 +19,7 @@ import {
   uploadVehicleMedia,
   watchMediaForVehicle,
 } from '@/services/media';
-import { deleteVehicle, getVehicle } from '@/services/vehicles';
+import { deleteVehicle, getVehicle, updateVehicle } from '@/services/vehicles';
 import {
   VISIBILITY_LABELS,
   type MediaItem,
@@ -81,6 +81,27 @@ export default function VehicleDetailScreen() {
     );
     return unsub;
   }, [id]);
+
+  // Silent backfill: when the owner views one of their vehicles that was
+  // saved before we started tracking ownerDisplayName (or when they changed
+  // their display name since the last save), write the current name in.
+  // Fire-and-forget — failures are logged only.
+  useEffect(() => {
+    if (!id || !vehicle || !user) return;
+    if (vehicle.ownerId !== user.uid) return;
+    const currentName = user.displayName?.trim() || '';
+    const storedName = vehicle.ownerDisplayName?.trim() || '';
+    if (!currentName || currentName === storedName) return;
+    updateVehicle(id, { ownerDisplayName: currentName })
+      .then(() => {
+        setVehicle((prev) =>
+          prev ? { ...prev, ownerDisplayName: currentName } : prev,
+        );
+      })
+      .catch((err) => {
+        console.warn('[detail] ownerDisplayName backfill failed', err);
+      });
+  }, [id, vehicle, user]);
 
   const coverMedia = useMemo(() => {
     if (!vehicle) return null;

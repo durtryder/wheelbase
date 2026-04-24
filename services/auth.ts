@@ -40,6 +40,20 @@ export async function resetPassword(email: string): Promise<void> {
 }
 
 /**
+ * Update the currently signed-in user's display name on their Firebase Auth
+ * profile. Does NOT rewrite the denormalized `ownerDisplayName` on already-
+ * saved vehicles — those refresh opportunistically the next time the owner
+ * edits them (or views them, via the auto-backfill in the detail page).
+ */
+export async function updateDisplayName(name: string): Promise<void> {
+  if (!auth.currentUser) throw new Error('Not signed in.');
+  await updateProfile(auth.currentUser, { displayName: name.trim() || null });
+  // updateProfile mutates currentUser in place, but some hooks (e.g. our
+  // useAuth) key off object identity. Force a re-read so listeners see it.
+  await auth.currentUser.reload();
+}
+
+/**
  * Translate Firebase's auth error codes into something a user can act on.
  */
 export function humanizeAuthError(e: unknown): string {
