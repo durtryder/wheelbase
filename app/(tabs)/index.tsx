@@ -117,7 +117,6 @@ export default function GarageScreen() {
             <View style={styles.addRow}>
               <ThemedText type="metadata" style={{ color: palette.textMuted }}>
                 {totals.vehicles} {totals.vehicles === 1 ? 'vehicle' : 'vehicles'}
-                {totals.modifications > 0 ? ` · ${totals.modifications} modifications` : ''}
                 {editingOrder && orderSaving ? ' · saving order…' : ''}
               </ThemedText>
               <View style={styles.headerActions}>
@@ -240,14 +239,7 @@ function sortVehiclesByDisplayOrder(vehicles: Vehicle[]): Vehicle[] {
 }
 
 function computeTotals(vehicles: Vehicle[] | null) {
-  if (!vehicles) return { vehicles: 0, modifications: 0 };
-  return {
-    vehicles: vehicles.length,
-    modifications: vehicles.reduce(
-      (sum, v) => sum + (v.modifications?.length ?? 0),
-      0,
-    ),
-  };
+  return { vehicles: vehicles?.length ?? 0 };
 }
 
 function EmptyGarage({ palette, onAdd }: { palette: Palette; onAdd: () => void }) {
