@@ -9,11 +9,10 @@
  * enums rendered as horizontal chip selectors.
  */
 
-import { Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { DateField } from '@/components/date-field';
+import { DateFieldTs } from '@/components/date-field-ts';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -32,25 +31,6 @@ type Props = {
   value: BuildSheet;
   onChange: (next: BuildSheet) => void;
 };
-
-function parseDateToTimestamp(s: string): Timestamp | undefined {
-  const trimmed = s.trim();
-  if (!trimmed) return undefined;
-  const d = new Date(trimmed + 'T12:00:00');
-  if (Number.isNaN(d.getTime())) return undefined;
-  return Timestamp.fromDate(d);
-}
-
-function formatTimestampAsDate(ts: Timestamp | undefined): string {
-  if (!ts) return '';
-  try {
-    const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts as unknown as Date);
-    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return '';
-  }
-}
 
 export function BuildSheetForm({ value, onChange }: Props) {
   const scheme = useColorScheme() ?? 'light';
@@ -126,20 +106,20 @@ export function BuildSheetForm({ value, onChange }: Props) {
             />
             <Row>
               <Col>
-                <DateField
+                <DateFieldTs
                   label="Build Start Date"
-                  value={formatTimestampAsDate(overview.buildStartDate)}
-                  onChangeText={(t) =>
-                    update('overview', { buildStartDate: parseDateToTimestamp(t) })
+                  value={overview.buildStartDate}
+                  onChange={(ts) =>
+                    update('overview', { buildStartDate: ts })
                   }
                 />
               </Col>
               <Col>
-                <DateField
+                <DateFieldTs
                   label="Build Completion Date"
-                  value={formatTimestampAsDate(overview.buildCompletionDate)}
-                  onChangeText={(t) =>
-                    update('overview', { buildCompletionDate: parseDateToTimestamp(t) })
+                  value={overview.buildCompletionDate}
+                  onChange={(ts) =>
+                    update('overview', { buildCompletionDate: ts })
                   }
                 />
               </Col>

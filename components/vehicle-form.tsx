@@ -28,6 +28,7 @@ import {
 
 import { BuildSheetForm } from '@/components/build-sheet-form';
 import { DateField } from '@/components/date-field';
+import { DateFieldTs } from '@/components/date-field-ts';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -842,12 +843,10 @@ function ModificationsRepeater({
           />
           <Row>
             <Col>
-              <DateField
+              <DateFieldTs
                 label="Installed Date"
-                value={formatTimestampAsDate(mod.installedAt)}
-                onChangeText={(t) =>
-                  update(i, { installedAt: parseDateToTimestamp(t) })
-                }
+                value={mod.installedAt}
+                onChange={(ts) => update(i, { installedAt: ts })}
               />
             </Col>
             <Col>
@@ -1067,21 +1066,17 @@ function OwnershipRepeater({
           />
           <Row>
             <Col>
-              <DateField
+              <DateFieldTs
                 label="Acquired"
-                value={formatTimestampAsDate(entry.acquiredAt)}
-                onChangeText={(t) =>
-                  update(i, { acquiredAt: parseDateToTimestamp(t) })
-                }
+                value={entry.acquiredAt}
+                onChange={(ts) => update(i, { acquiredAt: ts })}
               />
             </Col>
             <Col>
-              <DateField
+              <DateFieldTs
                 label="Relinquished"
-                value={formatTimestampAsDate(entry.relinquishedAt)}
-                onChangeText={(t) =>
-                  update(i, { relinquishedAt: parseDateToTimestamp(t) })
-                }
+                value={entry.relinquishedAt}
+                onChange={(ts) => update(i, { relinquishedAt: ts })}
               />
             </Col>
           </Row>

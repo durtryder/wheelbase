@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
 import { DocumentList } from '@/components/document-list';
 import { MediaGallery } from '@/components/media-gallery';
+import { QrShareButton } from '@/components/qr-share-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -361,7 +362,14 @@ export default function VehicleDetailScreen() {
             <View style={styles.shareGroup}>
               <VisibilityPill visibility={v.visibility} palette={palette} />
               {v.visibility !== 'private' ? (
-                <ShareButton vehicleId={v.id} palette={palette} />
+                <>
+                  <ShareButton vehicleId={v.id} palette={palette} />
+                  <QrShareButton
+                    url={buildVehicleUrl(v.id)}
+                    title={title}
+                    palette={palette}
+                  />
+                </>
               ) : null}
             </View>
             {isOwner ? (
@@ -418,18 +426,6 @@ export default function VehicleDetailScreen() {
           </View>
         )}
 
-        {v.story?.trim() ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText type="subtitle">The Story</ThemedText>
-              <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
-            </View>
-            <ThemedText type="default" style={styles.storyBody}>
-              {v.story.trim()}
-            </ThemedText>
-          </View>
-        ) : null}
-
         <Section title="Vehicle Overview" palette={palette}>
           <DetailRow label="Year" value={String(v.year)} palette={palette} />
           <DetailRow label="Make" value={v.make} palette={palette} />
@@ -445,6 +441,18 @@ export default function VehicleDetailScreen() {
         </Section>
 
         <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
+
+        {v.story?.trim() ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">The Story</ThemedText>
+              <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+            </View>
+            <ThemedText type="default" style={styles.storyBody}>
+              {v.story.trim()}
+            </ThemedText>
+          </View>
+        ) : null}
 
         {/* Photos & Videos — promoted above Build Sheet so the visual
             story leads. Sits on the editorial light background; the
@@ -711,6 +719,19 @@ function formatTransmission(style: string | undefined, speeds: number | undefine
 function formatPlant(city?: string, state?: string, country?: string) {
   const parts = [city, state, country].filter(Boolean);
   return parts.length ? parts.join(', ') : undefined;
+}
+
+/**
+ * Build the public URL for a vehicle. On web we use the current origin
+ * so QR codes scanned at meetups land on the same hostname the owner
+ * is currently browsing (preview / staging / prod all just work). On
+ * native we fall back to the canonical wheelba.se host.
+ */
+function buildVehicleUrl(vehicleId: string): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/vehicles/${vehicleId}`;
+  }
+  return `https://wheelba.se/vehicles/${vehicleId}`;
 }
 
 function formatBytes(n: number) {
