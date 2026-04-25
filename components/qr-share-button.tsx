@@ -53,9 +53,13 @@ export function QrShareButton({ url, title, palette }: Props) {
     setError(null);
     QRCode.toDataURL(url, {
       width: 720,
-      margin: 2,
+      margin: 1,
       errorCorrectionLevel: 'M',
-      color: { dark: '#000000', light: '#ffffff' },
+      // Transparent background so the QR sits directly on whatever
+      // surface it's rendered against — page cream inline, modal
+      // surface in the popup. Black cells still give plenty of
+      // contrast for camera scanners on either ground.
+      color: { dark: '#000000', light: '#00000000' },
     })
       .then((d) => {
         if (!cancelled) setDataUrl(d);
@@ -76,10 +80,7 @@ export function QrShareButton({ url, title, palette }: Props) {
         accessibilityLabel="Show QR code"
         style={({ hovered, pressed }) => [
           styles.triggerThumb,
-          {
-            borderColor: palette.border,
-            opacity: pressed ? 0.85 : 1,
-          },
+          { opacity: pressed ? 0.7 : hovered ? 0.85 : 1 },
           hovered ? ({ cursor: 'pointer' } as object) : null,
         ]}>
         {dataUrl ? (
@@ -192,11 +193,7 @@ function QrModal({
           <View
             style={[
               modalStyles.qrFrame,
-              {
-                width: qrSize + 24,
-                height: qrSize + 24,
-                borderColor: palette.border,
-              },
+              { width: qrSize, height: qrSize },
             ]}>
             {dataUrl ? (
               <Image
@@ -248,15 +245,12 @@ function QrModal({
 
 const styles = StyleSheet.create({
   // Mini QR thumb sits inline in the share row beside the Share Link
-  // pill. Square so the QR's natural shape shows through; thin border
-  // matches the share / visibility pills in tone.
+  // pill. No frame, no padding — the transparent-background QR
+  // dissolves into the page so it reads as part of the row, not as a
+  // bordered widget.
   triggerThumb: {
     width: 38,
     height: 38,
-    borderWidth: 1,
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    padding: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -286,11 +280,10 @@ const modalStyles = StyleSheet.create({
     width: '100%',
     gap: 4,
   },
+  // No frame in the popup either — QR sits directly on the modal
+  // card's surface so the only "frame" is the negative space around
+  // the code.
   qrFrame: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
