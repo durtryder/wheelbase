@@ -355,9 +355,10 @@ export default function VehicleDetailScreen() {
           </Pressable>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
 
-          {/* Visibility + share on the left, Edit on the right (owners only).
-              Wraps gracefully on narrow screens so the Edit action never
-              gets clipped. */}
+          {/* Visibility + share on the left (wrap inside their own group
+              if they run out of room), Edit pinned to the right. The
+              Edit pill compacts on narrow screens so it never gets
+              shoved onto a second row. */}
           <View style={styles.shareRow}>
             <View style={styles.shareGroup}>
               <VisibilityPill visibility={v.visibility} palette={palette} />
@@ -375,8 +376,18 @@ export default function VehicleDetailScreen() {
             {isOwner ? (
               <Pressable
                 onPress={() => router.push(`/vehicles/edit/${v.id}`)}
-                style={[styles.topEditButton, { backgroundColor: palette.tint }]}>
-                <ThemedText style={styles.topEditButtonText}>Edit vehicle</ThemedText>
+                style={[
+                  styles.topEditButton,
+                  isNarrow ? styles.topEditButtonCompact : null,
+                  { backgroundColor: palette.tint },
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.topEditButtonText,
+                    isNarrow ? styles.topEditButtonTextCompact : null,
+                  ]}>
+                  {isNarrow ? 'Edit' : 'Edit vehicle'}
+                </ThemedText>
               </Pressable>
             ) : null}
           </View>
@@ -1257,11 +1268,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginTop: 4,
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
   },
   shareGroup: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -1271,11 +1282,19 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 18,
     borderRadius: 999,
+    flexShrink: 0,
+  },
+  topEditButtonCompact: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
   },
   topEditButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  topEditButtonTextCompact: {
+    fontSize: 13,
   },
   pill: {
     paddingVertical: 5,

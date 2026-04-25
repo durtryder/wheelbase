@@ -41,55 +41,12 @@ type Props = {
 
 export function QrShareButton({ url, title, palette }: Props) {
   const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={({ hovered }) => [
-          styles.triggerButton,
-          { borderColor: palette.border },
-          hovered ? ({ cursor: 'pointer' } as object) : null,
-        ]}>
-        <ThemedText
-          type="metadata"
-          style={{ color: palette.text, fontWeight: '600' }}>
-          QR code
-        </ThemedText>
-      </Pressable>
-
-      {open ? (
-        <QrModal
-          url={url}
-          title={title}
-          palette={palette}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function QrModal({
-  url,
-  title,
-  palette,
-  onClose,
-}: {
-  url: string;
-  title?: string;
-  palette: Palette;
-  onClose: () => void;
-}) {
-  const { width: windowWidth } = useWindowDimensions();
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  // Render the QR at a generous size so it scans cleanly even when the
-  // photographer is a few feet away and the screen is dim. We use a
-  // fixed pixel size in the data URL (720) so the bitmap stays sharp
-  // when scaled down to whatever fits the modal.
+  // Generate once per URL change at a generous resolution. The inline
+  // trigger downsamples to a thumbnail; the popup re-uses the same
+  // bitmap at a much larger display size.
   useEffect(() => {
     let cancelled = false;
     setDataUrl(null);
@@ -111,6 +68,68 @@ function QrModal({
       cancelled = true;
     };
   }, [url]);
+
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityLabel="Show QR code"
+        style={({ hovered, pressed }) => [
+          styles.triggerThumb,
+          {
+            borderColor: palette.border,
+            opacity: pressed ? 0.85 : 1,
+          },
+          hovered ? ({ cursor: 'pointer' } as object) : null,
+        ]}>
+        {dataUrl ? (
+          <Image
+            source={{ uri: dataUrl }}
+            style={styles.triggerThumbImage}
+            contentFit="contain"
+          />
+        ) : error ? (
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.tint, fontSize: 9 }}>
+            !
+          </ThemedText>
+        ) : (
+          <ActivityIndicator size="small" color={palette.tint} />
+        )}
+      </Pressable>
+
+      {open ? (
+        <QrModal
+          url={url}
+          title={title}
+          palette={palette}
+          dataUrl={dataUrl}
+          error={error}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function QrModal({
+  url,
+  title,
+  palette,
+  dataUrl,
+  error,
+  onClose,
+}: {
+  url: string;
+  title?: string;
+  palette: Palette;
+  dataUrl: string | null;
+  error: string | null;
+  onClose: () => void;
+}) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [copied, setCopied] = useState(false);
 
   // Escape closes on web. Native users get the back gesture / Android
   // hardware back via Modal's onRequestClose.
@@ -162,27 +181,13 @@ function QrModal({
               borderColor: palette.border,
             },
           ]}>
-          <ThemedText
-            type="eyebrow"
-            style={{ color: palette.tint, marginBottom: 6 }}>
-            Scan to open
-          </ThemedText>
           {title ? (
             <ThemedText
               type="subtitle"
-              style={{ textAlign: 'center', marginBottom: 4 }}>
+              style={{ textAlign: 'center', marginBottom: 18 }}>
               {title}
             </ThemedText>
           ) : null}
-          <ThemedText
-            type="metadata"
-            style={{
-              color: palette.textMuted,
-              textAlign: 'center',
-              marginBottom: 18,
-            }}>
-            Point a phone camera at the code below.
-          </ThemedText>
 
           <View
             style={[
@@ -242,13 +247,22 @@ function QrModal({
 }
 
 const styles = StyleSheet.create({
-  triggerButton: {
+  // Mini QR thumb sits inline in the share row beside the Share Link
+  // pill. Square so the QR's natural shape shows through; thin border
+  // matches the share / visibility pills in tone.
+  triggerThumb: {
+    width: 38,
+    height: 38,
     borderWidth: 1,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    padding: 3,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  triggerThumbImage: {
+    width: '100%',
+    height: '100%',
   },
 });
 
