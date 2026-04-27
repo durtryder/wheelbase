@@ -363,19 +363,9 @@ export default function VehicleDetailScreen() {
                 )
               }
               style={({ hovered, pressed }) => [
-                styles.instagramChip,
-                {
-                  borderColor: palette.border,
-                  backgroundColor: palette.surfaceDim,
-                  opacity: pressed ? 0.85 : 1,
-                },
+                { alignSelf: 'flex-start', marginTop: 2, opacity: pressed ? 0.7 : 1 },
                 hovered ? ({ cursor: 'pointer' } as object) : null,
               ]}>
-              <ThemedText
-                type="eyebrow"
-                style={{ color: palette.textMuted, letterSpacing: 1.5 }}>
-                INSTAGRAM
-              </ThemedText>
               <ThemedText
                 type="metadata"
                 style={{ color: palette.tint, fontWeight: '600' }}>
@@ -1209,16 +1199,6 @@ const styles = StyleSheet.create({
     height: 2,
     marginTop: 10,
     marginBottom: 4,
-  },
-  instagramChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
   },
   headlineStats: {
     flexDirection: 'row',

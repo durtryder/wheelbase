@@ -59,7 +59,10 @@ type Props = {
 
 const GAP = 4;
 const TARGET_ROW_HEIGHT_WIDE = 220;
-const TARGET_ROW_HEIGHT_NARROW = 140;
+// Tighter on phones so two landscape thumbs fit per row instead of one
+// landscape stretching across the whole viewport. The justify packer
+// also prevents single-item rows when more items remain.
+const TARGET_ROW_HEIGHT_NARROW = 110;
 const DEFAULT_COLLAPSED_ROWS = 3;
 
 export function MediaGallery({
@@ -223,7 +226,7 @@ function FullGalleryModal({
   const isWide = windowWidth >= 900;
   // The fullscreen gallery wants larger thumbs than the inline preview —
   // give each row more height so photography can breathe.
-  const targetRowHeight = windowWidth < 640 ? 160 : 220;
+  const targetRowHeight = windowWidth < 640 ? 130 : 220;
 
   // Pick the vehicle's chosen cover; fall back to first media item if
   // no cover has been designated (e.g., videos-only vehicle).
@@ -836,13 +839,17 @@ function justifyGrid(
   const rows: { items: (MediaItem & { width: number; height: number })[] }[] = [];
   let current: { item: MediaItem; aspect: number }[] = [];
   let currentScaledWidth = 0;
+  // Once a row stretches below this floor it starts to look cramped —
+  // we'll prefer leaving a singleton (or finalizing the current row
+  // before adding more) over crushing every row.
+  const minStretchFactor = 0.55;
 
   const finalizeRow = (rowItems: { item: MediaItem; aspect: number }[], stretch: boolean) => {
     if (!rowItems.length) return;
     const totalAspect = rowItems.reduce((s, r) => s + r.aspect, 0);
     const availableWidth = containerWidth - gap * (rowItems.length - 1);
     const rowHeight = stretch
-      ? Math.min(availableWidth / totalAspect, targetRowHeight * 1.35)
+      ? Math.min(availableWidth / totalAspect, targetRowHeight * 1.55)
       : targetRowHeight;
     rows.push({
       items: rowItems.map((r) => ({
@@ -853,12 +860,31 @@ function justifyGrid(
     });
   };
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     const aspect = aspectOf(item);
     const scaledWidth = targetRowHeight * aspect;
     const nextWidth = currentScaledWidth + scaledWidth + (current.length > 0 ? gap : 0);
 
     if (nextWidth > containerWidth && current.length > 0) {
+      // Don't leave a lonely landscape on its own row when we can pack
+      // the next one in. If the current row would finalize as a
+      // singleton, try adding this item anyway and let the stretch math
+      // shrink the row to fit. Only abort the rescue if the result
+      // would look cramped (height below ~55% of target).
+      if (current.length === 1) {
+        const totalAspect = current[0].aspect + aspect;
+        const availableWidth = containerWidth - gap;
+        const candidateHeight = availableWidth / totalAspect;
+        if (candidateHeight >= targetRowHeight * minStretchFactor) {
+          current.push({ item, aspect });
+          currentScaledWidth += scaledWidth + gap;
+          finalizeRow(current, true);
+          current = [];
+          currentScaledWidth = 0;
+          continue;
+        }
+      }
       finalizeRow(current, true);
       current = [];
       currentScaledWidth = 0;
