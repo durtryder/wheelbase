@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   deleteObject,
@@ -265,6 +266,21 @@ export async function setVehicleCoverPhoto(vehicleId: string, mediaId: string | 
     coverPhotoId: mediaId,
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Persist a new display order for a vehicle's media. Writes `order` as
+ * 0..N-1 in a single batched update so the gallery either sees the full new
+ * order or the old one — never a half-applied state. Caller passes ids in
+ * the desired visual order (first → top-left).
+ */
+export async function reorderMediaItems(orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, index) => {
+    batch.update(doc(db, MEDIA, id), { order: index });
+  });
+  await batch.commit();
 }
 
 /** Update (or clear) a MediaItem's caption. Owner-only at the rules layer. */

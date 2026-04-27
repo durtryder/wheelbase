@@ -7,6 +7,7 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } f
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
 import { DocumentList } from '@/components/document-list';
 import { MediaGallery } from '@/components/media-gallery';
+import { MediaReorderGrid } from '@/components/media-reorder-grid';
 import { QrShareButton } from '@/components/qr-share-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -17,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { buildInstagramUrl } from '@/lib/instagram';
 import {
   deleteMediaItem,
+  reorderMediaItems,
   setVehicleCoverPhoto,
   updateMediaCaption,
   uploadVehicleMedia,
@@ -58,6 +60,17 @@ export default function VehicleDetailScreen() {
   } | null>(null);
   const [photoActionBusy, setPhotoActionBusy] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Reorder mode for the gallery — owner-only, toggled from the Photos &
+  // Videos section header. While active the lightbox is disabled and tiles
+  // become draggable (web) or arrow-controlled (native).
+  const [reordering, setReordering] = useState(false);
+  const [reorderSaving, setReorderSaving] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  // Optimistic local order so the dropped tile sticks instantly while the
+  // batched write makes its round-trip. Cleared when the snapshot comes
+  // back with the new order baked in.
+  const [reorderOverride, setReorderOverride] = useState<string[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,13 +120,56 @@ export default function VehicleDetailScreen() {
       });
   }, [id, vehicle, user]);
 
+  // Sort media by the user-set `order` field with the original Firestore
+  // (createdAt asc) order as the fallback for items that haven't been
+  // reordered. Once an override is set we honor it directly so the dropped
+  // tile sticks before the snapshot round-trips.
+  const sortedMedia = useMemo(() => {
+    const sorted = [...media].sort((a, b) => {
+      const ao = a.order ?? Number.POSITIVE_INFINITY;
+      const bo = b.order ?? Number.POSITIVE_INFINITY;
+      if (ao === bo) return 0;
+      return ao - bo;
+    });
+    if (!reorderOverride) return sorted;
+    const byId = new Map(sorted.map((m) => [m.id, m]));
+    const overridden = reorderOverride
+      .map((id) => byId.get(id))
+      .filter((m): m is MediaItem => !!m);
+    // Append any items that exist in the snapshot but aren't yet in the
+    // override (shouldn't happen normally, but keeps things resilient if a
+    // new upload races a reorder).
+    const seen = new Set(overridden.map((m) => m.id));
+    sorted.forEach((m) => {
+      if (!seen.has(m.id)) overridden.push(m);
+    });
+    return overridden;
+  }, [media, reorderOverride]);
+
+  // Drop the override once the upstream snapshot reflects it, so we go back
+  // to trusting Firestore as the source of truth.
+  useEffect(() => {
+    if (!reorderOverride) return;
+    const upstreamIds = [...media]
+      .sort((a, b) => {
+        const ao = a.order ?? Number.POSITIVE_INFINITY;
+        const bo = b.order ?? Number.POSITIVE_INFINITY;
+        if (ao === bo) return 0;
+        return ao - bo;
+      })
+      .map((m) => m.id)
+      .join('|');
+    const overrideIds = reorderOverride.join('|');
+    if (upstreamIds === overrideIds) setReorderOverride(null);
+  }, [media, reorderOverride]);
+
   const coverMedia = useMemo(() => {
     if (!vehicle) return null;
     if (vehicle.coverPhotoId) {
-      return media.find((m) => m.id === vehicle.coverPhotoId) ?? null;
+      return sortedMedia.find((m) => m.id === vehicle.coverPhotoId) ?? null;
     }
-    return media[0] ?? null;
-  }, [vehicle, media]);
+    return sortedMedia[0] ?? null;
+  }, [vehicle, sortedMedia]);
 
   async function handleDelete() {
     if (!id) return;
@@ -220,6 +276,22 @@ export default function VehicleDetailScreen() {
     );
   }
 
+  async function handleReorderMedia(orderedIds: string[]) {
+    setReorderError(null);
+    setReorderOverride(orderedIds);
+    setReorderSaving(true);
+    try {
+      await reorderMediaItems(orderedIds);
+    } catch (e) {
+      // Roll back the optimistic override so the UI reflects what's actually
+      // in Firestore. The user keeps the reorder UI open and can try again.
+      setReorderOverride(null);
+      setReorderError(e instanceof Error ? e.message : 'Could not save new order.');
+    } finally {
+      setReorderSaving(false);
+    }
+  }
+
   async function handleRemovePhoto(item: MediaItem) {
     if (!id || !vehicle) return;
     if (typeof window !== 'undefined' && !window.confirm('Remove this photo?')) return;
@@ -227,7 +299,7 @@ export default function VehicleDetailScreen() {
     try {
       await deleteMediaItem(item);
       if (vehicle.coverPhotoId === item.id) {
-        const next = media.find((m) => m.id !== item.id)?.id ?? null;
+        const next = sortedMedia.find((m) => m.id !== item.id)?.id ?? null;
         await setVehicleCoverPhoto(id, next);
         setVehicle({ ...vehicle, coverPhotoId: next ?? undefined });
       }
@@ -296,23 +368,25 @@ export default function VehicleDetailScreen() {
   const isOwner = !!user && user.uid === v.ownerId;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
 
-  const coverIndex = coverMedia ? media.findIndex((m) => m.id === coverMedia.id) : -1;
+  const coverIndex = coverMedia
+    ? sortedMedia.findIndex((m) => m.id === coverMedia.id)
+    : -1;
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Pressable
           onPress={() => {
-            if (coverIndex >= 0) setLightboxIndex(coverIndex);
+            if (coverIndex >= 0 && !reordering) setLightboxIndex(coverIndex);
           }}
-          disabled={coverIndex < 0}
+          disabled={coverIndex < 0 || reordering}
           style={({ pressed, hovered }) => [
             styles.hero,
             {
               backgroundColor: palette.surfaceDim,
               borderColor: palette.border,
-              opacity: coverIndex >= 0 && pressed ? 0.94 : 1,
-              ...(coverIndex >= 0 && hovered
+              opacity: coverIndex >= 0 && !reordering && pressed ? 0.94 : 1,
+              ...(coverIndex >= 0 && !reordering && hovered
                 ? ({ cursor: 'pointer' } as object)
                 : {}),
             },
@@ -491,25 +565,67 @@ export default function VehicleDetailScreen() {
             <View style={styles.sectionHeaderRow}>
               <ThemedText type="subtitle">Photos &amp; Videos</ThemedText>
               {isOwner ? (
-                <Pressable
-                  onPress={handleAddMedia}
-                  disabled={uploading}
-                  style={[
-                    styles.primaryButton,
-                    { backgroundColor: palette.tint, opacity: uploading ? 0.6 : 1 },
-                  ]}>
-                  {uploading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <ThemedText style={styles.primaryButtonText}>
-                      {media.length === 0 ? 'Add photos or videos' : 'Add more'}
-                    </ThemedText>
-                  )}
-                </Pressable>
+                <View style={styles.sectionHeaderActions}>
+                  {sortedMedia.length > 1 ? (
+                    <Pressable
+                      onPress={() => {
+                        setReordering((r) => !r);
+                        setReorderError(null);
+                      }}
+                      disabled={uploading}
+                      style={({ hovered }) => [
+                        styles.reorderLink,
+                        hovered ? ({ cursor: 'pointer' } as object) : null,
+                      ]}>
+                      <ThemedText
+                        type="metadata"
+                        style={{
+                          color: reordering ? palette.tint : palette.textMuted,
+                          fontWeight: '600',
+                          letterSpacing: 1,
+                          textDecorationLine: 'underline',
+                        }}>
+                        {reordering
+                          ? reorderSaving
+                            ? 'SAVING…'
+                            : 'DONE'
+                          : 'REORDER'}
+                      </ThemedText>
+                    </Pressable>
+                  ) : null}
+                  {!reordering ? (
+                    <Pressable
+                      onPress={handleAddMedia}
+                      disabled={uploading}
+                      style={[
+                        styles.primaryButton,
+                        { backgroundColor: palette.tint, opacity: uploading ? 0.6 : 1 },
+                      ]}>
+                      {uploading ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <ThemedText style={styles.primaryButtonText}>
+                          {sortedMedia.length === 0 ? 'Add photos or videos' : 'Add more'}
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
             </View>
             <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
           </View>
+
+          {reordering ? (
+            <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+              Drag to reorder. Changes save automatically.
+            </ThemedText>
+          ) : null}
+          {reorderError ? (
+            <ThemedText type="metadata" style={{ color: palette.tint }}>
+              {reorderError}
+            </ThemedText>
+          ) : null}
 
           {uploadProgress ? (
             <ThemedText type="metadata" style={{ color: palette.textMuted }}>
@@ -528,15 +644,17 @@ export default function VehicleDetailScreen() {
             </ThemedText>
           ) : null}
 
-          {media.length === 0 ? (
+          {sortedMedia.length === 0 ? (
             <ThemedText type="metadata" style={{ color: palette.placeholder }}>
               {isOwner
                 ? 'No media yet. Add photos or videos to bring this build to life.'
                 : 'No media yet.'}
             </ThemedText>
+          ) : reordering ? (
+            <MediaReorderGrid media={sortedMedia} onReorder={handleReorderMedia} />
           ) : (
             <MediaGallery
-              media={media}
+              media={sortedMedia}
               vehicle={v}
               isOwner={isOwner}
               onSetCover={handleSetCover}
@@ -1233,6 +1351,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     flexWrap: 'wrap',
+  },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  reorderLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
   sectionRule: {
     height: 1,
