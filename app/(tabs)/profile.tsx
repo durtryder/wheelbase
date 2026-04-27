@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +15,9 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { buildInstagramUrl, normalizeInstagramHandle } from '@/lib/instagram';
 import { humanizeAuthError, signOutUser, updateDisplayName } from '@/services/auth';
+import { setUserInstagramHandle, watchUserProfile } from '@/services/users';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -33,8 +36,30 @@ export default function ProfileScreen() {
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
 
+  // Instagram handle edit state. Lives on /users/{uid} in Firestore — we
+  // subscribe so the displayed value stays in sync if the same user is
+  // signed in elsewhere. Independent of the display-name edit block above.
+  const [savedInstagram, setSavedInstagram] = useState<string | null>(null);
+  const [editingInstagram, setEditingInstagram] = useState(false);
+  const [draftInstagram, setDraftInstagram] = useState('');
+  const [savingInstagram, setSavingInstagram] = useState(false);
+  const [instagramError, setInstagramError] = useState<string | null>(null);
+
   useEffect(() => {
     if (user) setSavedDisplayName(user.displayName ?? null);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setSavedInstagram(null);
+      return;
+    }
+    const unsub = watchUserProfile(
+      user.uid,
+      (profile) => setSavedInstagram(profile?.instagramHandle?.trim() || null),
+      (err) => setInstagramError(err.message),
+    );
+    return unsub;
   }, [user]);
 
   async function handleSignOut() {
@@ -68,6 +93,28 @@ export default function ProfileScreen() {
       setError(humanizeAuthError(e));
     } finally {
       setSavingName(false);
+    }
+  }
+
+  function startEditInstagram() {
+    setDraftInstagram(savedInstagram ?? '');
+    setEditingInstagram(true);
+    setInstagramError(null);
+  }
+
+  async function saveInstagram() {
+    if (!user) return;
+    setInstagramError(null);
+    setSavingInstagram(true);
+    try {
+      const normalized = normalizeInstagramHandle(draftInstagram) ?? null;
+      await setUserInstagramHandle(user.uid, normalized);
+      setSavedInstagram(normalized);
+      setEditingInstagram(false);
+    } catch (e) {
+      setInstagramError(e instanceof Error ? e.message : 'Could not save Instagram handle.');
+    } finally {
+      setSavingInstagram(false);
     }
   }
 
@@ -176,6 +223,113 @@ export default function ProfileScreen() {
                     style={{ color: palette.placeholder, marginTop: 8 }}>
                     UID: {user.uid}
                   </ThemedText>
+
+                  <View
+                    style={[styles.hairline, { backgroundColor: palette.border }]}
+                  />
+
+                  <View style={styles.instagramSection}>
+                    <View style={styles.headRow}>
+                      <ThemedText
+                        type="eyebrow"
+                        style={{ color: palette.textMuted, flex: 1 }}>
+                        Instagram
+                      </ThemedText>
+                      {!editingInstagram ? (
+                        <Pressable onPress={startEditInstagram} hitSlop={8}>
+                          <ThemedText
+                            type="metadata"
+                            style={{
+                              color: palette.tint,
+                              fontWeight: '600',
+                              letterSpacing: 1,
+                            }}>
+                            EDIT
+                          </ThemedText>
+                        </Pressable>
+                      ) : null}
+                    </View>
+
+                    {editingInstagram ? (
+                      <View style={styles.editBlock}>
+                        <FormField
+                          label="Instagram"
+                          value={draftInstagram}
+                          onChangeText={setDraftInstagram}
+                          placeholder="@handle or instagram.com/handle"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <ThemedText
+                          type="metadata"
+                          style={{ color: palette.textMuted }}>
+                          Shown on your public profile. Leave blank to remove.
+                        </ThemedText>
+                        {instagramError ? (
+                          <ThemedText
+                            type="metadata"
+                            style={{ color: palette.tint }}>
+                            {instagramError}
+                          </ThemedText>
+                        ) : null}
+                        <View style={styles.editActions}>
+                          <Pressable
+                            onPress={() => setEditingInstagram(false)}
+                            disabled={savingInstagram}
+                            style={[styles.ghostButton, { borderColor: palette.border }]}>
+                            <ThemedText
+                              style={[styles.ghostButtonText, { color: palette.text }]}>
+                              Cancel
+                            </ThemedText>
+                          </Pressable>
+                          <Pressable
+                            onPress={saveInstagram}
+                            disabled={savingInstagram}
+                            style={[
+                              styles.primaryButton,
+                              {
+                                backgroundColor: palette.tint,
+                                opacity: savingInstagram ? 0.6 : 1,
+                              },
+                            ]}>
+                            {savingInstagram ? (
+                              <ActivityIndicator color="#fff" />
+                            ) : (
+                              <ThemedText style={styles.primaryButtonText}>
+                                Save Instagram
+                              </ThemedText>
+                            )}
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : savedInstagram ? (
+                      <Pressable
+                        accessibilityRole="link"
+                        accessibilityLabel={`Open @${savedInstagram} on Instagram`}
+                        onPress={() => Linking.openURL(buildInstagramUrl(savedInstagram))}
+                        style={({ hovered, pressed }) => [
+                          styles.instagramChip,
+                          {
+                            borderColor: palette.border,
+                            backgroundColor: palette.surfaceDim,
+                            opacity: pressed ? 0.85 : 1,
+                          },
+                          hovered ? ({ cursor: 'pointer' } as object) : null,
+                        ]}>
+                        <ThemedText
+                          type="metadata"
+                          style={{ color: palette.tint, fontWeight: '600' }}>
+                          @{savedInstagram}
+                        </ThemedText>
+                      </Pressable>
+                    ) : (
+                      <ThemedText
+                        type="metadata"
+                        style={{ color: palette.placeholder }}>
+                        Not set
+                      </ThemedText>
+                    )}
+                  </View>
 
                   <View
                     style={[styles.hairline, { backgroundColor: palette.border }]}
@@ -300,5 +454,18 @@ const styles = StyleSheet.create({
   ghostButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  instagramSection: {
+    gap: 10,
+  },
+  instagramChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
   },
 });

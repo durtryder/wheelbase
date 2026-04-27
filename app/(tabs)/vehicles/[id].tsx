@@ -14,6 +14,7 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useBreakpoints } from '@/hooks/use-breakpoints';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { buildInstagramUrl } from '@/lib/instagram';
 import {
   deleteMediaItem,
   setVehicleCoverPhoto,
@@ -357,11 +358,7 @@ export default function VehicleDetailScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel={`Open @${v.instagramHandle} on Instagram`}
-              onPress={() =>
-                Linking.openURL(
-                  `https://www.instagram.com/${encodeURIComponent(v.instagramHandle!)}`,
-                )
-              }
+              onPress={() => Linking.openURL(buildInstagramUrl(v.instagramHandle!))}
               style={({ hovered, pressed }) => [
                 { alignSelf: 'flex-start', marginTop: 2, opacity: pressed ? 0.7 : 1 },
                 hovered ? ({ cursor: 'pointer' } as object) : null,

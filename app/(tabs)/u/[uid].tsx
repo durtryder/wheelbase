@@ -1,6 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -8,8 +15,11 @@ import { VehicleCard } from '@/components/vehicle-card';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { buildInstagramUrl } from '@/lib/instagram';
 import { watchPublicVehiclesByOwner } from '@/services/vehicles';
+import { watchUserProfile } from '@/services/users';
 import type { Vehicle } from '@/types/vehicle';
+import type { UserProfile } from '@/types/user';
 
 type Palette = (typeof Colors)['light'];
 
@@ -22,6 +32,7 @@ export default function PublicProfileScreen() {
 
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!uid) return;
@@ -34,6 +45,20 @@ export default function PublicProfileScreen() {
     );
     return unsub;
   }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = watchUserProfile(
+      uid,
+      (p) => setProfile(p),
+      // Profile-load errors aren't fatal — without a profile we just skip the
+      // chip. Log so it shows up if rules misfire, but don't block the page.
+      (err) => console.warn('[profile] could not load user profile', err),
+    );
+    return unsub;
+  }, [uid]);
+
+  const instagramHandle = profile?.instagramHandle?.trim() || null;
 
   // Derive the display name from any of the builder's vehicles. All of their
   // vehicles carry the same denormalized ownerDisplayName, so the first one
@@ -58,6 +83,32 @@ export default function PublicProfileScreen() {
           </ThemedText>
           <ThemedText type="title">{headerName}</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
+          {instagramHandle ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Open @${instagramHandle} on Instagram`}
+              onPress={() => Linking.openURL(buildInstagramUrl(instagramHandle))}
+              style={({ hovered, pressed }) => [
+                styles.instagramChip,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.surfaceDim,
+                  opacity: pressed ? 0.85 : 1,
+                },
+                hovered ? ({ cursor: 'pointer' } as object) : null,
+              ]}>
+              <ThemedText
+                type="eyebrow"
+                style={{ color: palette.textMuted, letterSpacing: 1.5 }}>
+                INSTAGRAM
+              </ThemedText>
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.tint, fontWeight: '600' }}>
+                @{instagramHandle}
+              </ThemedText>
+            </Pressable>
+          ) : null}
           <ThemedText
             type="metadata"
             style={{ color: palette.textMuted, textAlign: 'center' }}>
@@ -185,5 +236,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  instagramChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignSelf: 'center',
   },
 });

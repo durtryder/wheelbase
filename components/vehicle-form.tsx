@@ -34,6 +34,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { normalizeInstagramHandle } from '@/lib/instagram';
 import { fetchOemSpecs } from '@/services/oem-lookup';
 import {
   VISIBILITY_DESCRIPTIONS,
@@ -128,23 +129,6 @@ function formatTimestampAsDate(ts: Timestamp | undefined): string {
 
 function generateRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * Accept anything the user is likely to paste — bare handle, "@handle", a
- * profile URL like instagram.com/handle or https://www.instagram.com/handle/
- * — and reduce it to the bare handle we actually store.
- */
-function normalizeInstagramHandle(raw: string): string | undefined {
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  let h = trimmed;
-  const urlMatch = h.match(
-    /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^/?#]+)/i,
-  );
-  if (urlMatch) h = urlMatch[1];
-  h = h.replace(/^@+/, '').replace(/\/+$/, '');
-  return h || undefined;
 }
 
 // ---------- Main form ----------

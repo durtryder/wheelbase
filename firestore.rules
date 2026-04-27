@@ -61,6 +61,14 @@ service cloud.firestore {
                             && request.auth.uid == resource.data.ownerId;
     }
 
+    // User profile docs — public read (so /u/{uid} can show social links),
+    // self-write only. Doc ID is the user's UID.
+    match /users/{uid} {
+      allow read: if true;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
     // Default deny for anything else.
     match /{document=**} {
       allow read, write: if false;
