@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
 import { DocumentList } from '@/components/document-list';
@@ -146,7 +146,7 @@ export default function VehicleDetailScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsMultipleSelection: true,
-        quality: 0.85,
+        quality: 1,
       });
 
       if (result.canceled || !result.assets?.length) return;
@@ -353,6 +353,36 @@ export default function VehicleDetailScreen() {
               </ThemedText>
             </ThemedText>
           </Pressable>
+          {v.instagramHandle ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Open @${v.instagramHandle} on Instagram`}
+              onPress={() =>
+                Linking.openURL(
+                  `https://www.instagram.com/${encodeURIComponent(v.instagramHandle!)}`,
+                )
+              }
+              style={({ hovered, pressed }) => [
+                styles.instagramChip,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.surfaceDim,
+                  opacity: pressed ? 0.85 : 1,
+                },
+                hovered ? ({ cursor: 'pointer' } as object) : null,
+              ]}>
+              <ThemedText
+                type="eyebrow"
+                style={{ color: palette.textMuted, letterSpacing: 1.5 }}>
+                INSTAGRAM
+              </ThemedText>
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.tint, fontWeight: '600' }}>
+                @{v.instagramHandle}
+              </ThemedText>
+            </Pressable>
+          ) : null}
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
 
           {/* Visibility + share on the left (wrap inside their own group
@@ -1179,6 +1209,16 @@ const styles = StyleSheet.create({
     height: 2,
     marginTop: 10,
     marginBottom: 4,
+  },
+  instagramChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
   },
   headlineStats: {
     flexDirection: 'row',

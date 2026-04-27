@@ -23,6 +23,12 @@ export type Vehicle = {
   model: string;
   trim?: string;
   nickname?: string;
+  /**
+   * Instagram handle for this specific build (without the leading "@"). Per
+   * vehicle, not per user — many enthusiasts run a dedicated account for one
+   * car. Stored normalized: no "@", no URL, no trailing slash.
+   */
+  instagramHandle?: string;
   vin?: string;
   chassisNumber?: string;
 

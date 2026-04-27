@@ -24,6 +24,7 @@ export default function VehicleBuilderScreen() {
       model: value.model,
       trim: value.trim,
       nickname: value.nickname,
+      instagramHandle: value.instagramHandle,
       vin: value.vin,
       story: value.story,
       mileage: value.mileage,

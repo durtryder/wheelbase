@@ -56,6 +56,7 @@ export type VehicleFormValue = {
   model: string;
   trim?: string;
   nickname?: string;
+  instagramHandle?: string;
   vin?: string;
   story?: string;
   mileage?: number;
@@ -129,6 +130,23 @@ function generateRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Accept anything the user is likely to paste — bare handle, "@handle", a
+ * profile URL like instagram.com/handle or https://www.instagram.com/handle/
+ * — and reduce it to the bare handle we actually store.
+ */
+function normalizeInstagramHandle(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  let h = trimmed;
+  const urlMatch = h.match(
+    /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^/?#]+)/i,
+  );
+  if (urlMatch) h = urlMatch[1];
+  h = h.replace(/^@+/, '').replace(/\/+$/, '');
+  return h || undefined;
+}
+
 // ---------- Main form ----------
 
 export function VehicleForm({
@@ -151,6 +169,9 @@ export function VehicleForm({
   const [model, setModel] = useState(initialValue?.model ?? '');
   const [trim, setTrim] = useState(initialValue?.trim ?? '');
   const [nickname, setNickname] = useState(initialValue?.nickname ?? '');
+  const [instagramHandle, setInstagramHandle] = useState(
+    initialValue?.instagramHandle ?? '',
+  );
   const [story, setStory] = useState(initialValue?.story ?? '');
   const [mileage, setMileage] = useState(
     initialValue?.mileage != null ? String(initialValue.mileage) : '',
@@ -359,6 +380,7 @@ export function VehicleForm({
         model: model.trim(),
         trim: trim.trim() || undefined,
         nickname: nickname.trim() || undefined,
+        instagramHandle: normalizeInstagramHandle(instagramHandle),
         vin: vin.trim() || undefined,
         story: story.trim() || undefined,
         mileage: parseIntOrUndefined(mileage),
@@ -483,12 +505,26 @@ export function VehicleForm({
               />
             </Col>
           </Row>
-          <FormField
-            label="Nickname"
-            value={nickname}
-            onChangeText={setNickname}
-            placeholder="e.g. Rosso"
-          />
+          <Row>
+            <Col>
+              <FormField
+                label="Nickname"
+                value={nickname}
+                onChangeText={setNickname}
+                placeholder="e.g. Rosso"
+              />
+            </Col>
+            <Col>
+              <FormField
+                label="Instagram"
+                value={instagramHandle}
+                onChangeText={setInstagramHandle}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="@handle or instagram.com/handle"
+              />
+            </Col>
+          </Row>
           <FormField
             label="VIN / Chassis Number"
             value={vin}
