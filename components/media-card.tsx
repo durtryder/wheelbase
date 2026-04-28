@@ -14,7 +14,9 @@ export function MediaCard({ item }: { item: GarageMediaFeedItem }) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/vehicles/${item.vehicleId}`)}
+      onPress={() =>
+        router.push(`/vehicles/${item.vehicleId}?media=${encodeURIComponent(item.id)}`)
+      }
       style={({ pressed }) => [
         styles.card,
         {

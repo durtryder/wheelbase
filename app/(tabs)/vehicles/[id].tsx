@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
@@ -38,7 +38,11 @@ import {
 type Palette = (typeof Colors)['light'];
 
 export default function VehicleDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, media: mediaParamId } = useLocalSearchParams<{
+    id: string;
+    /** Optional deep-link target — open the lightbox on this media id. */
+    media?: string;
+  }>();
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -71,6 +75,12 @@ export default function VehicleDetailScreen() {
   // batched write makes its round-trip. Cleared when the snapshot comes
   // back with the new order baked in.
   const [reorderOverride, setReorderOverride] = useState<string[] | null>(null);
+
+  // Honor a `?media=<id>` deep-link by opening the lightbox on that item
+  // once the gallery has loaded. The ref guard makes sure we only do this
+  // on the first opportunity — if the user closes the lightbox we don't
+  // immediately re-open it just because the URL still carries the param.
+  const honoredMediaParamRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +172,21 @@ export default function VehicleDetailScreen() {
     const overrideIds = reorderOverride.join('|');
     if (upstreamIds === overrideIds) setReorderOverride(null);
   }, [media, reorderOverride]);
+
+  useEffect(() => {
+    if (honoredMediaParamRef.current) return;
+    if (!mediaParamId || sortedMedia.length === 0) return;
+    const idx = sortedMedia.findIndex((m) => m.id === mediaParamId);
+    if (idx < 0) {
+      // Item isn't in this vehicle's gallery (deleted, or wrong link).
+      // Mark honored so we don't keep searching — fall back to showing the
+      // detail page top, same as a normal navigation.
+      honoredMediaParamRef.current = true;
+      return;
+    }
+    setLightboxIndex(idx);
+    honoredMediaParamRef.current = true;
+  }, [mediaParamId, sortedMedia]);
 
   const coverMedia = useMemo(() => {
     if (!vehicle) return null;
