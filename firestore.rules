@@ -69,6 +69,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Feed content synced by Cloud Functions (Admin SDK bypasses rules).
+    // Public read so signed-in clients can subscribe to the live feed; no
+    // direct client writes — only the scheduled function should populate
+    // these collections.
+    match /feed_articles/{articleId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /bat_listings/{listingId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Default deny for anything else.
     match /{document=**} {
       allow read, write: if false;
