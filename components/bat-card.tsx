@@ -1,10 +1,12 @@
 import { Image } from 'expo-image';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { feedThumbnailUrl } from '@/lib/feed-image';
 import type { BaTListing } from '@/types/feed';
 
 export function BaTCard({
@@ -16,6 +18,8 @@ export function BaTCard({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const [imageFailed, setImageFailed] = useState(false);
+  const heroSrc = feedThumbnailUrl(listing.imageUrl);
 
   const handlePress = async () => {
     if (Platform.OS === 'web') {
@@ -45,12 +49,14 @@ export function BaTCard({
           opacity: pressed ? 0.92 : 1,
         },
       ]}>
-      {listing.imageUrl ? (
+      {heroSrc && !imageFailed ? (
         <View style={[styles.hero, { backgroundColor: palette.surfaceDim }]}>
           <Image
-            source={{ uri: listing.imageUrl }}
+            source={{ uri: heroSrc }}
             style={styles.heroImage}
             contentFit="cover"
+            transition={250}
+            onError={() => setImageFailed(true)}
           />
         </View>
       ) : null}

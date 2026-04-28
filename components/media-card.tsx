@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -11,6 +12,7 @@ export function MediaCard({ item }: { item: GarageMediaFeedItem }) {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <Pressable
@@ -25,12 +27,14 @@ export function MediaCard({ item }: { item: GarageMediaFeedItem }) {
           opacity: pressed ? 0.92 : 1,
         },
       ]}>
-      {item.imageUrl ? (
+      {item.imageUrl && !imageFailed ? (
         <View style={[styles.hero, { backgroundColor: palette.surfaceDim }]}>
           <Image
             source={{ uri: item.imageUrl }}
             style={styles.heroImage}
             contentFit="cover"
+            transition={250}
+            onError={() => setImageFailed(true)}
           />
         </View>
       ) : null}

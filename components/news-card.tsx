@@ -1,10 +1,12 @@
 import { Image } from 'expo-image';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { feedThumbnailUrl } from '@/lib/feed-image';
 import { NEWS_SOURCE_LABELS, type NewsArticle } from '@/types/feed';
 
 export function NewsCard({
@@ -16,6 +18,8 @@ export function NewsCard({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const [imageFailed, setImageFailed] = useState(false);
+  const heroSrc = feedThumbnailUrl(article.imageUrl);
 
   const handlePress = async () => {
     if (Platform.OS === 'web') {
@@ -41,12 +45,14 @@ export function NewsCard({
           opacity: pressed ? 0.92 : 1,
         },
       ]}>
-      {article.imageUrl ? (
+      {heroSrc && !imageFailed ? (
         <View style={[styles.hero, { backgroundColor: palette.surfaceDim }]}>
           <Image
-            source={{ uri: article.imageUrl }}
+            source={{ uri: heroSrc }}
             style={styles.heroImage}
             contentFit="cover"
+            transition={250}
+            onError={() => setImageFailed(true)}
           />
         </View>
       ) : null}
