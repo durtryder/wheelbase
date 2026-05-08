@@ -45,6 +45,8 @@ import {
   type Modification,
   type OemSpecs,
   type OwnershipEntry,
+  type ShareSheetConfig,
+  type ShareSheetKey,
   type Vehicle,
   type Visibility,
 } from '@/types/vehicle';
@@ -70,6 +72,7 @@ export type VehicleFormValue = {
   ownershipHistory?: OwnershipEntry[];
   buildSheet?: BuildSheet;
   visibility?: Visibility;
+  shareSheet?: ShareSheetConfig;
 
   oemSpecs?: OemSpecs;
 };
@@ -198,6 +201,17 @@ export function VehicleForm({
   const [visibility, setVisibility] = useState<Visibility>(
     initialValue?.visibility ?? 'private',
   );
+  // Share-sheet config: which sections + sensitive fields appear when
+  // a non-owner views the vehicle. Initialize from the saved value
+  // (older records may have nothing here, in which case undefined-
+  // means-true keeps current behavior). Toggling produces an
+  // explicit true/false — we never store partial entries.
+  const [shareSheet, setShareSheet] = useState<ShareSheetConfig>(
+    initialValue?.shareSheet ?? {},
+  );
+  const setShareSheetKey = (key: ShareSheetKey, value: boolean) => {
+    setShareSheet((prev) => ({ ...prev, [key]: value }));
+  };
 
   // --- OEM Specifications ---
   const [oemSpecs, setOemSpecs] = useState<OemSpecs | null>(
@@ -376,6 +390,8 @@ export function VehicleForm({
         ownershipHistory: owners.length ? owners : undefined,
         buildSheet: buildSheetHasContent ? buildSheet : undefined,
         visibility,
+        shareSheet:
+          Object.keys(shareSheet).length > 0 ? shareSheet : undefined,
         oemSpecs: assembledOem,
       };
 
@@ -445,6 +461,84 @@ export function VehicleForm({
           <ThemedText type="metadata" style={{ color: palette.textMuted }}>
             {VISIBILITY_DESCRIPTIONS[visibility]}
           </ThemedText>
+        </Section>
+
+        {/* ========== Share sheet ========== */}
+        <Section title="Share sheet" palette={palette}>
+          <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+            You always see every detail you record about this vehicle.
+            Choose what others see when the page is shared. Identity
+            (year/make/model, cover photo, owner, body colors) is
+            always visible — it&apos;s what makes the listing
+            recognizable.
+          </ThemedText>
+
+          <SubSectionHeader title="Sections" palette={palette} />
+          <ShareToggle
+            label="Vehicle Story"
+            hint="The free-text narrative under the title."
+            value={shareSheet.story !== false}
+            onChange={(v) => setShareSheetKey('story', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Vehicle Details"
+            hint="Builder, modifications, ownership history."
+            value={shareSheet.vehicleDetails !== false}
+            onChange={(v) => setShareSheetKey('vehicleDetails', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Build Sheet"
+            hint="Full spec sheet across all sections."
+            value={shareSheet.buildSheet !== false}
+            onChange={(v) => setShareSheetKey('buildSheet', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Photos &amp; Videos"
+            hint="The whole gallery beyond the cover photo."
+            value={shareSheet.photos !== false}
+            onChange={(v) => setShareSheetKey('photos', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Documents"
+            hint="Service records, invoices, titles, anything uploaded."
+            value={shareSheet.documents !== false}
+            onChange={(v) => setShareSheetKey('documents', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="OEM Specifications"
+            hint="Factory specs from NHTSA / Wikidata / CarQuery / manual."
+            value={shareSheet.oemSpecs !== false}
+            onChange={(v) => setShareSheetKey('oemSpecs', v)}
+            palette={palette}
+          />
+
+          <SubSectionHeader title="Sensitive details" palette={palette} />
+          <ShareToggle
+            label="VIN / Chassis Number"
+            hint="Hide from public viewers — collectors often prefer this."
+            value={shareSheet.vin !== false}
+            onChange={(v) => setShareSheetKey('vin', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Mileage"
+            hint="Some owners keep odometer reading private."
+            value={shareSheet.mileage !== false}
+            onChange={(v) => setShareSheetKey('mileage', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Location"
+            hint="City / state / country."
+            value={shareSheet.location !== false}
+            onChange={(v) => setShareSheetKey('location', v)}
+            palette={palette}
+          />
         </Section>
 
         {/* ========== Vehicle Overview ========== */}
@@ -1283,6 +1377,66 @@ function AddRowButton({
   );
 }
 
+/**
+ * Tappable row that flips a single share-sheet flag. Visually a label +
+ * hint stacked on the left and a checkbox-style square on the right.
+ * Whole row is pressable so the touch target is comfortable on mobile.
+ */
+function ShareToggle({
+  label,
+  hint,
+  value,
+  onChange,
+  palette,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  palette: Palette;
+}) {
+  return (
+    <Pressable
+      onPress={() => onChange(!value)}
+      style={({ hovered, pressed }) => [
+        styles.shareToggleRow,
+        {
+          borderColor: palette.border,
+          backgroundColor: pressed ? palette.surfaceDim : 'transparent',
+        },
+        hovered ? ({ cursor: 'pointer' } as object) : null,
+      ]}>
+      <View style={styles.shareToggleText}>
+        <ThemedText type="default" style={{ fontWeight: '600' }}>
+          {label}
+        </ThemedText>
+        {hint ? (
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted, marginTop: 2 }}>
+            {hint}
+          </ThemedText>
+        ) : null}
+      </View>
+      <View
+        style={[
+          styles.shareToggleBox,
+          {
+            borderColor: value ? palette.tint : palette.border,
+            backgroundColor: value ? palette.tint : 'transparent',
+          },
+        ]}>
+        {value ? (
+          <ThemedText
+            style={{ color: '#fff', fontSize: 14, fontWeight: '700', lineHeight: 16 }}>
+            ✓
+          </ThemedText>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 function Row({ children }: { children: React.ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
@@ -1517,6 +1671,26 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 14,
+  },
+  shareToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  shareToggleText: {
+    flex: 1,
+  },
+  shareToggleBox: {
+    width: 26,
+    height: 26,
+    borderWidth: 1.5,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   visibilityRow: {
     flexDirection: 'row',

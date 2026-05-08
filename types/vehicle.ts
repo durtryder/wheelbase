@@ -93,6 +93,16 @@ export type Vehicle = {
    */
   displayOrder?: number;
 
+  /**
+   * Owner-curated "share sheet" — controls which sections and
+   * sensitive fields appear when a non-owner views this vehicle.
+   * Owners always see everything regardless. Undefined / missing
+   * keys default to true (visible) so older records don't suddenly
+   * hide content. Top-level `visibility` still gates whether the
+   * page is reachable at all.
+   */
+  shareSheet?: ShareSheetConfig;
+
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -482,6 +492,45 @@ export type OemSpecs = {
 };
 
 export type Visibility = 'private' | 'unlisted' | 'public';
+
+/**
+ * Per-section + per-sensitive-field toggle map that controls what a
+ * non-owner sees on the vehicle detail page. Every key defaults to
+ * true when missing (so vehicles created before this feature, or
+ * fields the owner hasn't touched, behave the same as before).
+ *
+ * Identity fields (year/make/model/trim/nickname/cover photo/owner
+ * name/Instagram/body colors) are always visible — they define the
+ * vehicle on cards and feeds, and hiding them would be confusing.
+ */
+export type ShareSheetConfig = {
+  // Sections — each gates a whole block on the detail page.
+  story?: boolean;
+  vehicleDetails?: boolean; // builder + modifications + ownership history
+  buildSheet?: boolean;
+  photos?: boolean;
+  documents?: boolean;
+  oemSpecs?: boolean;
+  // Sensitive identity fields owners often prefer to hide piecemeal.
+  vin?: boolean;
+  mileage?: boolean;
+  location?: boolean;
+};
+
+export type ShareSheetKey = keyof ShareSheetConfig;
+
+/**
+ * Read-side helper. Returns true if the given key should be visible to
+ * a non-owner. Undefined config or undefined key value both fall
+ * through to "shown".
+ */
+export function isFieldShared(
+  config: ShareSheetConfig | undefined,
+  key: ShareSheetKey,
+): boolean {
+  if (!config) return true;
+  return config[key] !== false;
+}
 
 export const VISIBILITY_LABELS: Record<Visibility, string> = {
   private: 'Private',

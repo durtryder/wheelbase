@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
@@ -26,11 +26,13 @@ import {
 } from '@/services/media';
 import { deleteVehicle, getVehicle, updateVehicle } from '@/services/vehicles';
 import {
+  isFieldShared,
   VISIBILITY_LABELS,
   type MediaItem,
   type Modification,
   type OemSpecs,
   type OwnershipEntry,
+  type ShareSheetConfig,
   type Vehicle,
   type Visibility,
 } from '@/types/vehicle';
@@ -393,6 +395,13 @@ export default function VehicleDetailScreen() {
   const isOwner = !!user && user.uid === v.ownerId;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
 
+  // Single source of truth for "should this content render to the
+  // current viewer?" — owners always see everything; non-owners are
+  // gated by the share-sheet config (with undefined-means-true so
+  // older records keep working).
+  const canShow = (key: keyof ShareSheetConfig) =>
+    isOwner || isFieldShared(v.shareSheet, key);
+
   const coverIndex = coverMedia
     ? sortedMedia.findIndex((m) => m.id === coverMedia.id)
     : -1;
@@ -533,56 +542,77 @@ export default function VehicleDetailScreen() {
           />
         ) : null}
 
-        {isNarrow ? (
-          // Narrow: 2×2 grid with thin hairlines, avoids cramped 4-col row.
-          <View
-            style={[
-              styles.headlineStats,
-              { borderColor: palette.border, flexWrap: 'wrap', gap: 0 },
-            ]}>
-            <View style={styles.headlineStatCell}>
-              <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
+        {(() => {
+          // Share-sheet drives whether mileage / location render. Build
+          // the visible list first so wide and narrow layouts share the
+          // same source of truth.
+          const headlineCells: { label: string; value: string }[] = [];
+          if (canShow('mileage')) {
+            headlineCells.push({
+              label: 'Mileage',
+              value: formatMileage(v.mileage),
+            });
+          }
+          headlineCells.push({
+            label: 'Exterior',
+            value: v.exteriorColor ?? '—',
+          });
+          headlineCells.push({
+            label: 'Interior',
+            value: v.interiorColor ?? '—',
+          });
+          if (canShow('location')) {
+            headlineCells.push({
+              label: 'Location',
+              value: formatLocation(v.location) ?? '—',
+            });
+          }
+          if (headlineCells.length === 0) return null;
+
+          if (isNarrow) {
+            return (
+              <View
+                style={[
+                  styles.headlineStats,
+                  { borderColor: palette.border, flexWrap: 'wrap', gap: 0 },
+                ]}>
+                {headlineCells.map((cell) => (
+                  <View key={cell.label} style={styles.headlineStatCell}>
+                    <HeadlineStat
+                      label={cell.label}
+                      value={cell.value}
+                      palette={palette}
+                    />
+                  </View>
+                ))}
+              </View>
+            );
+          }
+          return (
+            <View
+              style={[styles.headlineStats, { borderColor: palette.border }]}>
+              {headlineCells.map((cell, i) => (
+                <Fragment key={cell.label}>
+                  {i > 0 ? <HeadlineDivider color={palette.border} /> : null}
+                  <HeadlineStat
+                    label={cell.label}
+                    value={cell.value}
+                    palette={palette}
+                  />
+                </Fragment>
+              ))}
             </View>
-            <View style={styles.headlineStatCell}>
-              <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
-            </View>
-            <View style={styles.headlineStatCell}>
-              <HeadlineStat label="Interior" value={v.interiorColor ?? '—'} palette={palette} />
-            </View>
-            <View style={styles.headlineStatCell}>
-              <HeadlineStat
-                label="Location"
-                value={formatLocation(v.location) ?? '—'}
-                palette={palette}
-              />
-            </View>
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.headlineStats,
-              { borderColor: palette.border },
-            ]}>
-            <HeadlineStat label="Mileage" value={formatMileage(v.mileage)} palette={palette} />
-            <HeadlineDivider color={palette.border} />
-            <HeadlineStat label="Exterior" value={v.exteriorColor ?? '—'} palette={palette} />
-            <HeadlineDivider color={palette.border} />
-            <HeadlineStat label="Interior" value={v.interiorColor ?? '—'} palette={palette} />
-            <HeadlineDivider color={palette.border} />
-            <HeadlineStat
-              label="Location"
-              value={formatLocation(v.location) ?? '—'}
-              palette={palette}
-            />
-          </View>
-        )}
+          );
+        })()}
 
         <Section title="Vehicle Overview" palette={palette}>
           <DetailRow label="Year" value={String(v.year)} palette={palette} />
           <DetailRow label="Make" value={v.make} palette={palette} />
           <DetailRow label="Model" value={v.model} palette={palette} />
           {v.trim ? <DetailRow label="Trim" value={v.trim} palette={palette} /> : null}
-          {v.vin ? <DetailRow label="VIN" value={v.vin} palette={palette} /> : null}
+          {v.vin && canShow('vin') ? (
+            <DetailRow label="VIN" value={v.vin} palette={palette} />
+          ) : null}
           {v.chassisNumber ? (
             <DetailRow label="Chassis Number" value={v.chassisNumber} palette={palette} />
           ) : null}
@@ -591,9 +621,11 @@ export default function VehicleDetailScreen() {
           ) : null}
         </Section>
 
-        <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
+        {canShow('vehicleDetails') ? (
+          <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
+        ) : null}
 
-        {v.story?.trim() ? (
+        {v.story?.trim() && canShow('story') ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText type="subtitle">The Story</ThemedText>
@@ -609,6 +641,7 @@ export default function VehicleDetailScreen() {
             story leads. Sits on the editorial light background; the
             near-black treatment is reserved for the lightbox, where a
             dark ground makes the imagery itself pop. */}
+        {canShow('photos') ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderRow}>
@@ -715,16 +748,19 @@ export default function VehicleDetailScreen() {
             />
           )}
         </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">Build Sheet</ThemedText>
-            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+        {canShow('buildSheet') ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">Build Sheet</ThemedText>
+              <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+            </View>
+            <BuildSheetDisplay buildSheet={v.buildSheet} isOwner={isOwner} />
           </View>
-          <BuildSheetDisplay buildSheet={v.buildSheet} isOwner={isOwner} />
-        </View>
+        ) : null}
 
-        {v.oemSpecs ? (
+        {v.oemSpecs && canShow('oemSpecs') ? (
           <Section title={`OEM Specifications (${sourceName(v.oemSpecs.source)})`} palette={palette}>
             <DetailRow label="Body Class" value={v.oemSpecs.bodyClass} palette={palette} />
             <DetailRow
@@ -761,17 +797,19 @@ export default function VehicleDetailScreen() {
           </Section>
         ) : null}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">Documentation</ThemedText>
-            <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+        {canShow('documents') ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">Documentation</ThemedText>
+              <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
+            </View>
+            <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+              Service records, shop invoices, awards, build sheets, Marti reports
+              — any paperwork worth keeping with the car.
+            </ThemedText>
+            <DocumentList vehicleId={v.id} ownerId={v.ownerId} isOwner={isOwner} />
           </View>
-          <ThemedText type="metadata" style={{ color: palette.textMuted }}>
-            Service records, shop invoices, awards, build sheets, Marti reports
-            — any paperwork worth keeping with the car.
-          </ThemedText>
-          <DocumentList vehicleId={v.id} ownerId={v.ownerId} isOwner={isOwner} />
-        </View>
+        ) : null}
 
         <View style={styles.actions}>
           <Pressable

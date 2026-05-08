@@ -37,6 +37,7 @@ export default function VehicleBuilderScreen() {
       buildSheet: value.buildSheet,
       mediaIds: [],
       visibility: value.visibility ?? 'private',
+      shareSheet: value.shareSheet,
       oemSpecs: value.oemSpecs,
     };
     const newId = await createVehicle(input);

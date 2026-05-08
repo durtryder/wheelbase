@@ -69,6 +69,7 @@ export default function EditVehicleScreen() {
       ownershipHistory: value.ownershipHistory,
       buildSheet: value.buildSheet,
       visibility: value.visibility,
+      shareSheet: value.shareSheet,
       oemSpecs: value.oemSpecs,
     };
 
@@ -166,6 +167,7 @@ export default function EditVehicleScreen() {
         ownershipHistory: v.ownershipHistory,
         buildSheet: v.buildSheet,
         visibility: v.visibility,
+        shareSheet: v.shareSheet,
         oemSpecs: v.oemSpecs,
       }}
       onSubmit={handleSubmit}
