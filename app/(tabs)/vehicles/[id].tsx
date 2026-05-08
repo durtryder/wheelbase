@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -77,6 +78,10 @@ export default function VehicleDetailScreen() {
   // batched write makes its round-trip. Cleared when the snapshot comes
   // back with the new order baked in.
   const [reorderOverride, setReorderOverride] = useState<string[] | null>(null);
+  // Owner-only "preview as visitor" mode — flips the page into the
+  // exact view a non-owner sees so the owner can sanity-check their
+  // share-sheet config without opening an incognito tab.
+  const [previewMode, setPreviewMode] = useState(false);
 
   // Honor a `?media=<id>` deep-link by opening the lightbox on that item
   // once the gallery has loaded. The ref guard makes sure we only do this
@@ -395,12 +400,20 @@ export default function VehicleDetailScreen() {
   const isOwner = !!user && user.uid === v.ownerId;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
 
+  // "Preview as visitor" lets the owner see exactly what an outside
+  // viewer sees: share-sheet filtering applies, every owner-only
+  // affordance disappears, and the visitor join banner shows. The
+  // raw isOwner is preserved separately so the Preview/Exit pill
+  // itself only renders for the actual vehicle owner.
+  const showAsOwner = isOwner && !previewMode;
+  const showAsVisitor = !user || previewMode;
+
   // Single source of truth for "should this content render to the
-  // current viewer?" — owners always see everything; non-owners are
-  // gated by the share-sheet config (with undefined-means-true so
-  // older records keep working).
+  // current viewer?" — owners (in normal mode) see everything;
+  // non-owners are gated by the share-sheet config (with
+  // undefined-means-true so older records keep working).
   const canShow = (key: keyof ShareSheetConfig) =>
-    isOwner || isFieldShared(v.shareSheet, key);
+    showAsOwner || isFieldShared(v.shareSheet, key);
 
   const coverIndex = coverMedia
     ? sortedMedia.findIndex((m) => m.id === coverMedia.id)
@@ -498,31 +511,91 @@ export default function VehicleDetailScreen() {
                 </>
               ) : null}
             </View>
-            {isOwner ? (
-              <Pressable
-                onPress={() => router.push(`/vehicles/edit/${v.id}`)}
-                style={[
-                  styles.topEditButton,
-                  isNarrow ? styles.topEditButtonCompact : null,
-                  { backgroundColor: palette.tint },
-                ]}>
-                <ThemedText
-                  style={[
-                    styles.topEditButtonText,
-                    isNarrow ? styles.topEditButtonTextCompact : null,
+            {showAsOwner ? (
+              <View style={styles.ownerHeaderActions}>
+                <Pressable
+                  onPress={() => setPreviewMode(true)}
+                  accessibilityLabel="Preview as visitor"
+                  style={({ hovered, pressed }) => [
+                    styles.previewPill,
+                    {
+                      borderColor: palette.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                    hovered ? ({ cursor: 'pointer' } as object) : null,
                   ]}>
-                  {isNarrow ? 'Edit' : 'Edit vehicle'}
-                </ThemedText>
-              </Pressable>
+                  <Ionicons
+                    name="eye-outline"
+                    size={14}
+                    color={palette.text}
+                  />
+                  <ThemedText
+                    type="metadata"
+                    style={{ color: palette.text, fontWeight: '600' }}>
+                    {isNarrow ? 'Preview' : 'Preview'}
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push(`/vehicles/edit/${v.id}`)}
+                  style={[
+                    styles.topEditButton,
+                    isNarrow ? styles.topEditButtonCompact : null,
+                    { backgroundColor: palette.tint },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.topEditButtonText,
+                      isNarrow ? styles.topEditButtonTextCompact : null,
+                    ]}>
+                    {isNarrow ? 'Edit' : 'Edit vehicle'}
+                  </ThemedText>
+                </Pressable>
+              </View>
             ) : null}
           </View>
         </View>
 
+        {/* Owner-only banner that appears in preview mode so the
+            owner remembers they're viewing the public version of
+            their own listing and has a one-tap exit. */}
+        {previewMode && isOwner ? (
+          <View
+            style={[
+              styles.previewBanner,
+              { borderColor: palette.tint, backgroundColor: palette.surfaceDim },
+            ]}>
+            <View style={styles.previewBannerLeft}>
+              <Ionicons name="eye-outline" size={16} color={palette.tint} />
+              <ThemedText
+                type="eyebrow"
+                style={{ color: palette.tint, letterSpacing: 1.4 }}>
+                Previewing as visitor
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={() => setPreviewMode(false)}
+              style={({ hovered, pressed }) => [
+                styles.previewExitButton,
+                {
+                  borderColor: palette.tint,
+                  opacity: pressed ? 0.7 : 1,
+                },
+                hovered ? ({ cursor: 'pointer' } as object) : null,
+              ]}>
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.tint, fontWeight: '700' }}>
+                Exit preview
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Viral hook — anonymous viewers (typically arriving via a
             shared link or QR scan) get a warm pitch to start their
-            own garage. Pinned high enough on the page to convert
-            without elbowing the build itself out of the way. */}
-        {!user ? (
+            own garage. Also rendered when the owner is previewing so
+            they can see the visitor experience faithfully. */}
+        {showAsVisitor ? (
           <JoinWheelbaseBanner
             palette={palette}
             ownerName={v.ownerDisplayName?.trim()}
@@ -622,7 +695,11 @@ export default function VehicleDetailScreen() {
         </Section>
 
         {canShow('vehicleDetails') ? (
-          <VehicleDetailsSection vehicle={v} palette={palette} isOwner={isOwner} />
+          <VehicleDetailsSection
+            vehicle={v}
+            palette={palette}
+            isOwner={showAsOwner}
+          />
         ) : null}
 
         {v.story?.trim() && canShow('story') ? (
@@ -646,7 +723,7 @@ export default function VehicleDetailScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderRow}>
               <ThemedText type="subtitle">Photos &amp; Videos</ThemedText>
-              {isOwner ? (
+              {showAsOwner ? (
                 <View style={styles.sectionHeaderActions}>
                   {sortedMedia.length > 1 ? (
                     <Pressable
@@ -728,7 +805,7 @@ export default function VehicleDetailScreen() {
 
           {sortedMedia.length === 0 ? (
             <ThemedText type="metadata" style={{ color: palette.placeholder }}>
-              {isOwner
+              {showAsOwner
                 ? 'No media yet. Add photos or videos to bring this build to life.'
                 : 'No media yet.'}
             </ThemedText>
@@ -738,7 +815,7 @@ export default function VehicleDetailScreen() {
             <MediaGallery
               media={sortedMedia}
               vehicle={v}
-              isOwner={isOwner}
+              isOwner={showAsOwner}
               onSetCover={handleSetCover}
               onRemove={handleRemovePhoto}
               onUpdateCaption={handleUpdateCaption}
@@ -756,7 +833,7 @@ export default function VehicleDetailScreen() {
               <ThemedText type="subtitle">Build Sheet</ThemedText>
               <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
             </View>
-            <BuildSheetDisplay buildSheet={v.buildSheet} isOwner={isOwner} />
+            <BuildSheetDisplay buildSheet={v.buildSheet} isOwner={showAsOwner} />
           </View>
         ) : null}
 
@@ -807,7 +884,7 @@ export default function VehicleDetailScreen() {
               Service records, shop invoices, awards, build sheets, Marti reports
               — any paperwork worth keeping with the car.
             </ThemedText>
-            <DocumentList vehicleId={v.id} ownerId={v.ownerId} isOwner={isOwner} />
+            <DocumentList vehicleId={v.id} ownerId={v.ownerId} isOwner={showAsOwner} />
           </View>
         ) : null}
 
@@ -819,7 +896,7 @@ export default function VehicleDetailScreen() {
               {user ? 'Back to garage' : 'Back to feed'}
             </ThemedText>
           </Pressable>
-          {isOwner ? (
+          {showAsOwner ? (
             // Edit moved to the top of the page; only Delete remains here
             // so destructive action stays out of easy reach.
             <Pressable
@@ -837,7 +914,7 @@ export default function VehicleDetailScreen() {
                 </ThemedText>
               )}
             </Pressable>
-          ) : !user ? (
+          ) : showAsVisitor ? (
             // Anonymous visitor CTA — encourage sign-up to build their own,
             // and pass redirect so the new account lands back on this car.
             <Pressable
@@ -1605,6 +1682,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  ownerHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  previewPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  previewBanner: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  previewBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewExitButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
   },
   topEditButton: {
     paddingVertical: 9,

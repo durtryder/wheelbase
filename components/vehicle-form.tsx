@@ -16,6 +16,7 @@
  * typed VehicleFormValue via onSubmit.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import {
@@ -660,7 +661,10 @@ export function VehicleForm({
         </Section>
 
         {/* ========== Vehicle Story ========== */}
-        <Section title="Vehicle Story" palette={palette}>
+        <Section
+          title="Vehicle Story"
+          palette={palette}
+          shareSheetShared={shareSheet.story !== false}>
           <ThemedText type="metadata" style={{ color: palette.textMuted }}>
             A short narrative — where the car came from, what it&apos;s been
             through, why it matters. Will eventually be seeded from your
@@ -677,7 +681,10 @@ export function VehicleForm({
         </Section>
 
         {/* ========== Vehicle Details ========== */}
-        <Section title="Vehicle Details" palette={palette}>
+        <Section
+          title="Vehicle Details"
+          palette={palette}
+          shareSheetShared={shareSheet.vehicleDetails !== false}>
           <ThemedText type="metadata" style={{ color: palette.textMuted }}>
             Builder info, modifications, and ownership history. This is a
             rough build sheet — more fields will land as the template develops.
@@ -729,12 +736,18 @@ export function VehicleForm({
         </Section>
 
         {/* ========== Build Sheet ========== */}
-        <Section title="Build Sheet" palette={palette}>
+        <Section
+          title="Build Sheet"
+          palette={palette}
+          shareSheetShared={shareSheet.buildSheet !== false}>
           <BuildSheetForm value={buildSheet} onChange={setBuildSheet} />
         </Section>
 
         {/* ========== OEM Specifications ========== */}
-        <Section title="OEM Specifications" palette={palette}>
+        <Section
+          title="OEM Specifications"
+          palette={palette}
+          shareSheetShared={shareSheet.oemSpecs !== false}>
           <ThemedText type="metadata" style={{ color: palette.textMuted }}>
             We try NHTSA vPIC first (17-char VINs, 1981+), then Wikidata, then
             CarQuery. If your vehicle is too old or too obscure to be in any of
@@ -1325,18 +1338,61 @@ function Section({
   title,
   palette,
   children,
+  shareSheetShared,
 }: {
   title: string;
   palette: Palette;
   children: React.ReactNode;
+  /**
+   * Optional share-sheet visibility hint. When provided, renders a
+   * small eye / eye-off icon next to the title so the owner can tell
+   * at a glance whether this section will appear on the public share
+   * sheet. Undefined = no icon (used for Sharing / Share sheet itself
+   * and for Vehicle Overview, which has no single flag).
+   */
+  shareSheetShared?: boolean;
 }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <ThemedText type="subtitle">{title}</ThemedText>
+        <View style={styles.sectionTitleRow}>
+          <ThemedText type="subtitle">{title}</ThemedText>
+          {shareSheetShared !== undefined ? (
+            <ShareSheetIndicator shared={shareSheetShared} palette={palette} />
+          ) : null}
+        </View>
         <View style={[styles.sectionRule, { backgroundColor: palette.border }]} />
       </View>
       <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
+}
+
+/**
+ * Tiny passive eye / eye-off icon next to a section header. Pure
+ * informational — the actual toggle lives in the Share sheet section.
+ * Sized small and pushed up slightly so it sits centered against the
+ * section title's cap height rather than the full line box.
+ */
+function ShareSheetIndicator({
+  shared,
+  palette,
+}: {
+  shared: boolean;
+  palette: Palette;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={
+        shared ? 'Visible on share sheet' : 'Hidden from share sheet'
+      }
+      style={styles.shareSheetIndicator}>
+      <Ionicons
+        name={shared ? 'eye-outline' : 'eye-off-outline'}
+        size={16}
+        color={shared ? palette.textMuted : palette.tint}
+      />
     </View>
   );
 }
@@ -1553,6 +1609,15 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     gap: 10,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  shareSheetIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionRule: {
     height: 1,
