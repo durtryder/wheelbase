@@ -22,12 +22,17 @@ export const unstable_settings = {
  * URLs we intentionally let past the preview access gate. Today:
  *   /vehicles/<id> — shared public-vehicle links
  *   /u/<uid>       — public builder profile pages
- * Both need to work for people who don't have the preview password.
+ *   /sign-in       — viral signup flow: a recipient of a shared link
+ *                    needs to be able to create an account without
+ *                    knowing the preview password. The trade-off is
+ *                    that the preview password no longer gates new
+ *                    signups — which is the point.
  * We don't bypass /vehicles/new or /vehicles/edit/<id> — those are
  * owner-only actions that live behind the gate like everything else.
  */
 function isPublicShareRoute(pathname: string | null): boolean {
   if (!pathname) return false;
+  if (pathname === '/sign-in') return true;
   if (/^\/u\/[^/]+$/.test(pathname)) return true;
   return (
     /^\/vehicles\/[^/]+$/.test(pathname) &&

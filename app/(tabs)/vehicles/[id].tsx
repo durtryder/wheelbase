@@ -509,6 +509,30 @@ export default function VehicleDetailScreen() {
           </View>
         </View>
 
+        {/* Viral hook — anonymous viewers (typically arriving via a
+            shared link or QR scan) get a warm pitch to start their
+            own garage. Pinned high enough on the page to convert
+            without elbowing the build itself out of the way. */}
+        {!user ? (
+          <JoinWheelbaseBanner
+            palette={palette}
+            ownerName={v.ownerDisplayName?.trim()}
+            redirectPath={`/vehicles/${v.id}`}
+            onSignUp={() =>
+              router.push({
+                pathname: '/sign-in',
+                params: { mode: 'signup', redirect: `/vehicles/${v.id}` },
+              })
+            }
+            onSignIn={() =>
+              router.push({
+                pathname: '/sign-in',
+                params: { mode: 'signin', redirect: `/vehicles/${v.id}` },
+              })
+            }
+          />
+        ) : null}
+
         {isNarrow ? (
           // Narrow: 2×2 grid with thin hairlines, avoids cramped 4-col row.
           <View
@@ -776,9 +800,15 @@ export default function VehicleDetailScreen() {
               )}
             </Pressable>
           ) : !user ? (
-            // Anonymous visitor CTA — encourage sign-up to build their own.
+            // Anonymous visitor CTA — encourage sign-up to build their own,
+            // and pass redirect so the new account lands back on this car.
             <Pressable
-              onPress={() => router.push('/sign-in')}
+              onPress={() =>
+                router.push({
+                  pathname: '/sign-in',
+                  params: { mode: 'signup', redirect: `/vehicles/${v.id}` },
+                })
+              }
               style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
               <ThemedText style={styles.primaryButtonText}>
                 Start your own garage
@@ -988,6 +1018,79 @@ function ShareButton({
         {copied ? '✓ Link copied' : 'Share link'}
       </ThemedText>
     </Pressable>
+  );
+}
+
+// ---------- Viral hook for anonymous visitors ----------
+
+/**
+ * Lightweight pitch card that surfaces for anonymous viewers (typically
+ * arriving via a shared link or QR scan). Frames Wheelbase as the place
+ * to catalog your own builds; routes both CTAs through /sign-in with a
+ * redirect param so the user lands back on this same vehicle once
+ * authenticated.
+ */
+function JoinWheelbaseBanner({
+  palette,
+  ownerName,
+  redirectPath,
+  onSignUp,
+  onSignIn,
+}: {
+  palette: Palette;
+  ownerName: string | undefined;
+  redirectPath: string;
+  onSignUp: () => void;
+  onSignIn: () => void;
+}) {
+  // redirectPath is unused inside the banner today, but plumbing it
+  // through keeps the component honest about its viral intent and gives
+  // us somewhere to attach analytics later.
+  void redirectPath;
+  return (
+    <View
+      style={[
+        styles.joinBanner,
+        { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+      ]}>
+      <ThemedText
+        type="eyebrow"
+        style={{ color: palette.tint, letterSpacing: 1.6 }}>
+        Join Wheelbase
+      </ThemedText>
+      <ThemedText type="subtitle" style={{ marginTop: 4 }}>
+        Start your own garage.
+      </ThemedText>
+      <ThemedText
+        type="default"
+        style={{ color: palette.textMuted, marginTop: 8, lineHeight: 22 }}>
+        {ownerName ? `${ownerName} cataloged this build on Wheelbase. ` : ''}
+        Document your vehicles, track mods and history, and share with
+        other collectors and builders. Free to join.
+      </ThemedText>
+      <View style={styles.joinBannerActions}>
+        <Pressable
+          onPress={onSignUp}
+          style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
+          <ThemedText style={styles.primaryButtonText}>
+            Create free account
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={onSignIn}
+          style={({ hovered, pressed }) => [
+            styles.joinBannerSignIn,
+            { opacity: pressed ? 0.7 : 1 },
+            hovered ? ({ cursor: 'pointer' } as object) : null,
+          ]}>
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.tint, fontWeight: '600' }}>
+            Already a member? Sign in
+          </ThemedText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1366,6 +1469,23 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 16,
+  },
+  joinBanner: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 22,
+    paddingHorizontal: 22,
+  },
+  joinBannerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 16,
+    flexWrap: 'wrap',
+  },
+  joinBannerSignIn: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   sectionHeader: {
     gap: 10,

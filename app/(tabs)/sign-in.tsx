@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -12,13 +12,39 @@ import { humanizeAuthError, resetPassword, signIn, signUp } from '@/services/aut
 
 type Mode = 'signin' | 'signup' | 'reset';
 
+/**
+ * Validate a redirect path to make sure we don't ferry the user to an
+ * external origin or a protocol-relative URL. Only same-origin paths
+ * starting with a single "/" are honored.
+ */
+function safeRedirect(input: unknown): string | null {
+  if (typeof input !== 'string' || input.length === 0) return null;
+  if (!input.startsWith('/')) return null;
+  if (input.startsWith('//') || input.startsWith('/\\')) return null;
+  return input;
+}
+
+function parseInitialMode(input: unknown): Mode {
+  if (input === 'signup' || input === 'reset') return input;
+  return 'signin';
+}
+
 export default function SignInScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    mode?: string;
+    redirect?: string;
+  }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { user, loading: authLoading } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('signin');
+  const redirectTo = safeRedirect(params.redirect);
+  const initialMode = parseInitialMode(params.mode);
+
+  // useState's initial value is read once on mount, so a deep-link to
+  // /sign-in?mode=signup correctly lands on the signup tab.
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -26,8 +52,10 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [resetSentTo, setResetSentTo] = useState<string | null>(null);
 
-  // Already signed in? Offer to continue to the Garage.
+  // Already signed in? Offer to continue to the redirect target (if
+  // the user arrived from a shared link) or to the Garage.
   if (!authLoading && user) {
+    const continueLabel = redirectTo ? 'Continue' : 'Go to my garage';
     return (
       <ThemedView style={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
@@ -40,9 +68,9 @@ export default function SignInScreen() {
           </ThemedText>
           <View style={styles.centerRow}>
             <Pressable
-              onPress={() => router.replace('/')}
+              onPress={() => router.replace((redirectTo ?? '/') as Href)}
               style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-              <ThemedText style={styles.primaryButtonText}>Go to my garage</ThemedText>
+              <ThemedText style={styles.primaryButtonText}>{continueLabel}</ThemedText>
             </Pressable>
           </View>
         </ScrollView>
@@ -90,7 +118,9 @@ export default function SignInScreen() {
       } else {
         await signIn(emailTrimmed, password);
       }
-      router.replace('/');
+      // Honor ?redirect= when present so visitors arriving from a
+      // shared vehicle link land back on that vehicle after signup.
+      router.replace((redirectTo ?? '/') as Href);
     } catch (e) {
       setError(humanizeAuthError(e));
     } finally {
@@ -116,8 +146,24 @@ export default function SignInScreen() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.titleBlock}>
+          {redirectTo ? (
+            <ThemedText
+              type="eyebrow"
+              style={{ color: palette.tint, letterSpacing: 1.6 }}>
+              {mode === 'signup' ? 'Join Wheelbase' : 'Welcome back'}
+            </ThemedText>
+          ) : null}
           <ThemedText type="title">{title}</ThemedText>
           <View style={[styles.rule, { backgroundColor: palette.accent }]} />
+          {redirectTo ? (
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.textMuted, textAlign: 'center', marginTop: 4 }}>
+              {mode === 'signup'
+                ? "Once you're in, we'll take you back to the vehicle you were viewing."
+                : 'Signing in takes you back to where you left off.'}
+            </ThemedText>
+          ) : null}
         </View>
 
         {mode !== 'reset' ? (
