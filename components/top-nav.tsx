@@ -19,6 +19,7 @@ const NAV_RED = '#c1272d';
 const LINKS = [
   { href: '/', label: 'Garage' },
   { href: '/feed', label: 'Feed' },
+  { href: '/notebook', label: 'Notebook' },
   { href: '/profile', label: 'Profile' },
 ] as const;
 

@@ -41,6 +41,19 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
+    // Notebook photos — strictly private. Unlike vehicle photos these
+    // never get a public URL, so even read is owner-gated.
+    match /users/{uid}/notebook/{photoId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 25 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Default deny for anything else.
     match /{allPaths=**} {
       allow read, write: if false;

@@ -61,6 +61,27 @@ service cloud.firestore {
                             && request.auth.uid == resource.data.ownerId;
     }
 
+    // Notebook entries — fully private research journal. Strict
+    // owner-only read AND write; no public surface. Photos live inline
+    // on the entry doc (no companion media collection), so this is the
+    // single point of access control for the whole notebook.
+    match /notebookEntries/{entryId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.ownerId;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.ownerId
+                    && request.resource.data.keys().hasAll(['ownerId', 'photos']);
+
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.ownerId
+                    && (!('ownerId' in request.resource.data.keys())
+                        || request.resource.data.ownerId == resource.data.ownerId);
+
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.ownerId;
+    }
+
     // User profile docs — public read (so /u/{uid} can show social links),
     // self-write only. Doc ID is the user's UID.
     match /users/{uid} {
