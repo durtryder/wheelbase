@@ -16,7 +16,7 @@
  * typed VehicleFormValue via onSubmit.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import {
@@ -1369,10 +1369,11 @@ function Section({
 }
 
 /**
- * Tiny passive eye / eye-off icon next to a section header. Pure
+ * Passive eye / eye-off icon next to a section header. Pure
  * informational — the actual toggle lives in the Share sheet section.
- * Sized small and pushed up slightly so it sits centered against the
- * section title's cap height rather than the full line box.
+ * Uses MaterialIcons (which we already bundle elsewhere) for
+ * predictable web font-loading. Hidden state renders in tint with a
+ * faint pill background so it actually catches the eye.
  */
 function ShareSheetIndicator({
   shared,
@@ -1387,10 +1388,19 @@ function ShareSheetIndicator({
       accessibilityLabel={
         shared ? 'Visible on share sheet' : 'Hidden from share sheet'
       }
-      style={styles.shareSheetIndicator}>
-      <Ionicons
-        name={shared ? 'eye-outline' : 'eye-off-outline'}
-        size={16}
+      style={[
+        styles.shareSheetIndicator,
+        shared
+          ? null
+          : {
+              backgroundColor: palette.surfaceDim,
+              borderWidth: 1,
+              borderColor: palette.tint,
+            },
+      ]}>
+      <MaterialIcons
+        name={shared ? 'visibility' : 'visibility-off'}
+        size={18}
         color={shared ? palette.textMuted : palette.tint}
       />
     </View>
@@ -1616,6 +1626,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   shareSheetIndicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },

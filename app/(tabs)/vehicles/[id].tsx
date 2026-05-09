@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -524,8 +524,8 @@ export default function VehicleDetailScreen() {
                     },
                     hovered ? ({ cursor: 'pointer' } as object) : null,
                   ]}>
-                  <Ionicons
-                    name="eye-outline"
+                  <MaterialIcons
+                    name="visibility"
                     size={14}
                     color={palette.text}
                   />
@@ -565,7 +565,7 @@ export default function VehicleDetailScreen() {
               { borderColor: palette.tint, backgroundColor: palette.surfaceDim },
             ]}>
             <View style={styles.previewBannerLeft}>
-              <Ionicons name="eye-outline" size={16} color={palette.tint} />
+              <MaterialIcons name="visibility" size={16} color={palette.tint} />
               <ThemedText
                 type="eyebrow"
                 style={{ color: palette.tint, letterSpacing: 1.4 }}>
