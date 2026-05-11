@@ -115,6 +115,7 @@ function EntryCard({
   onPress: () => void;
 }) {
   const photoCount = entry.photos?.length ?? 0;
+  const linkCount = entry.links?.length ?? 0;
   const firstPhoto = photoCount > 0 ? entry.photos[0] : null;
   const dateLine = formatDate(entry.createdAt);
   const title = useMemo(() => deriveTitle(entry), [entry]);
@@ -172,6 +173,13 @@ function EntryCard({
               type="metadata"
               style={{ color: palette.placeholder, letterSpacing: 0.6 }}>
               {photoCount} {photoCount === 1 ? 'photo' : 'photos'}
+            </ThemedText>
+          ) : null}
+          {linkCount > 0 ? (
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.placeholder, letterSpacing: 0.6 }}>
+              {linkCount} {linkCount === 1 ? 'link' : 'links'}
             </ThemedText>
           ) : null}
         </View>
@@ -234,6 +242,17 @@ function deriveTitle(entry: NotebookEntry): string {
   if (entry.body?.trim()) {
     const firstLine = entry.body.split('\n')[0]?.trim() ?? '';
     if (firstLine.length > 0) return firstLine.slice(0, 80);
+  }
+  // Borrow the first link's title or host so link-only entries get a
+  // recognizable label in the list view.
+  const firstLink = entry.links?.[0];
+  if (firstLink) {
+    if (firstLink.title?.trim()) return firstLink.title.trim();
+    try {
+      return new URL(firstLink.url).hostname.replace(/^www\./, '');
+    } catch {
+      return firstLink.url;
+    }
   }
   if ((entry.photos?.length ?? 0) > 0) return 'Photo entry';
   return 'Untitled note';

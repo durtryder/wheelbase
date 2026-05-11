@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { FormField } from '@/components/form-field';
+import { NotebookLinksEditor } from '@/components/notebook-links-editor';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { VehicleLinker } from '@/components/vehicle-linker';
@@ -24,7 +25,7 @@ import {
   updateNotebookEntry,
   uploadNotebookPhoto,
 } from '@/services/notebook';
-import type { NotebookEntry, NotebookPhoto } from '@/types/notebook';
+import type { NotebookEntry, NotebookLink, NotebookPhoto } from '@/types/notebook';
 
 export default function NotebookEntryScreen() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function NotebookEntryScreen() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
+  const [links, setLinks] = useState<NotebookLink[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +70,7 @@ export default function NotebookEntryScreen() {
           setTitle(e.title ?? '');
           setBody(e.body ?? '');
           setVehicleId(e.vehicleId);
+          setLinks(e.links ?? []);
         }
       })
       .catch((e: unknown) => {
@@ -220,12 +223,14 @@ export default function NotebookEntryScreen() {
         title: title.trim() || undefined,
         body: body.trim() || undefined,
         vehicleId: vehicleId,
+        links: links.length > 0 ? links : undefined,
       });
       setEntry({
         ...entry,
         title: title.trim() || undefined,
         body: body.trim() || undefined,
         vehicleId: vehicleId,
+        links: links.length > 0 ? links : undefined,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
@@ -350,6 +355,17 @@ export default function NotebookEntryScreen() {
               No photos yet.
             </ThemedText>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+            Links
+          </ThemedText>
+          <NotebookLinksEditor
+            links={links}
+            onChange={setLinks}
+            palette={palette}
+          />
         </View>
 
         {/* Research placeholder — Phase 2 will replace this with an

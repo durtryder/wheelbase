@@ -22,6 +22,10 @@ export type NotebookEntry = {
   body?: string;
   /** Inline photo array (each photo gets its own id within the entry). */
   photos: NotebookPhoto[];
+  /** Web links the owner wants to keep with this entry (cool listings,
+   *  parts, vendors, threads, anything). Optional for backward
+   *  compatibility with entries created before this field shipped. */
+  links?: NotebookLink[];
 
   /** Optional cross-link to a vehicle in the owner's garage. Powers the
    *  "research this caliper for my 996 911" use case for the eventual
@@ -39,6 +43,26 @@ export type NotebookEntry = {
 
   createdAt: Timestamp;
   updatedAt: Timestamp;
+};
+
+export type NotebookLink = {
+  /** Unique within the parent entry — stable React key + removal target. */
+  id: string;
+  /** Fully-qualified URL (scheme included). The editor normalizes input
+   *  by prepending https:// when missing. */
+  url: string;
+  /** Owner-supplied display label. Falls back to the URL host when empty. */
+  title?: string;
+  /** When the link was added — useful for sorting later. */
+  addedAt?: Timestamp;
+  // Phase 2 fields, populated by the AI agent or a metadata fetcher.
+  // Stable shape now so we don't have to migrate later.
+  /** Human-friendly site name (e.g., "Bring a Trailer"). */
+  siteName?: string;
+  /** Short description / og:description scrape. */
+  description?: string;
+  /** og:image or similar preview thumbnail URL. */
+  thumbnailUrl?: string;
 };
 
 export type NotebookPhoto = {

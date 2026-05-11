@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { FormField } from '@/components/form-field';
+import { NotebookLinksEditor } from '@/components/notebook-links-editor';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { VehicleLinker } from '@/components/vehicle-linker';
@@ -18,7 +19,7 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createNotebookEntry, uploadNotebookPhoto } from '@/services/notebook';
-import type { NotebookPhoto } from '@/types/notebook';
+import type { NotebookLink, NotebookPhoto } from '@/types/notebook';
 
 export default function NewNotebookEntryScreen() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function NewNotebookEntryScreen() {
   const [body, setBody] = useState('');
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [photos, setPhotos] = useState<NotebookPhoto[]>([]);
+  const [links, setLinks] = useState<NotebookLink[]>([]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
@@ -89,8 +91,13 @@ export default function NewNotebookEntryScreen() {
 
   async function handleSave() {
     if (!user) return;
-    if (!title.trim() && !body.trim() && photos.length === 0) {
-      setError('Add a title, a note, or a photo before saving.');
+    if (
+      !title.trim() &&
+      !body.trim() &&
+      photos.length === 0 &&
+      links.length === 0
+    ) {
+      setError('Add a title, a note, a photo, or a link before saving.');
       return;
     }
     setError(null);
@@ -101,6 +108,7 @@ export default function NewNotebookEntryScreen() {
         title: title.trim() || undefined,
         body: body.trim() || undefined,
         photos,
+        links: links.length > 0 ? links : undefined,
         vehicleId,
       });
       router.replace(`/notebook/${id}` as Href);
@@ -207,6 +215,17 @@ export default function NewNotebookEntryScreen() {
               No photos yet.
             </ThemedText>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="eyebrow" style={{ color: palette.textMuted }}>
+            Links
+          </ThemedText>
+          <NotebookLinksEditor
+            links={links}
+            onChange={setLinks}
+            palette={palette}
+          />
         </View>
 
         {error ? (
