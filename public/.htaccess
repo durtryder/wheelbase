@@ -3,24 +3,36 @@
 # 1. Never 304-cache the access-gated index.html (we want the latest bundle
 #    hash loaded on every visit).
 # 2. If the URL matches a real file (JS, CSS, fonts, PNG, pre-rendered
-#    sign-in.html etc.), serve it directly.
-# 3. Otherwise, fall back to /index.html so Expo Router can take over client
-#    side — matches how Firebase Hosting's SPA rewrite worked.
+#    <route>.html etc.), serve it directly.
+# 3. If the URL matches a pre-rendered route filename (e.g., /notebook ->
+#    notebook.html), serve the HTML. This MUST happen before we check for
+#    directories — Expo exports both /notebook.html (the page) AND a
+#    /notebook/ directory (holding [id].html / new.html), and we don't
+#    want Apache's directory handler to win and 403.
+# 4. Real directories with an index.html serve as-is.
+# 5. Everything else falls through to /index.html so Expo Router can take
+#    over client-side — matches Firebase Hosting's SPA rewrite.
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Skip rewrites for real files / directories.
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
+  # Real file → serve as-is. (Don't bail on directories here — see the
+  # comment above about the /notebook + /notebook/ collision.)
+  RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Try <route>.html (Expo Router generates static HTML per route).
-  RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_URI}.html -f
-  RewriteRule ^(.+)$ /$1.html [L]
+  # Pre-rendered route — strip any trailing slash, then try <route>.html.
+  RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+  RewriteRule ^(.+?)/?$ /$1.html [L]
 
-  # Fallback: everything else goes to the SPA shell.
+  # Real directory that has its own index.html → let Apache handle.
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^ - [L]
+
+  # Fallback: everything else (including directories without an index)
+  # goes to the SPA shell.
   RewriteRule ^ /index.html [L]
 </IfModule>
 
