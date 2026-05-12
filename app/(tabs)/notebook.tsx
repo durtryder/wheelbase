@@ -117,6 +117,13 @@ function EntryCard({
   const photoCount = entry.photos?.length ?? 0;
   const linkCount = entry.links?.length ?? 0;
   const firstPhoto = photoCount > 0 ? entry.photos[0] : null;
+  // Fall back to a link's og:image when the entry has no real photos
+  // but at least one link with a fetched thumbnail. Makes link-only
+  // entries (e.g., a saved BaT listing) visually identifiable in the
+  // list instead of all reading as a generic "NOTE" tile.
+  const fallbackLinkThumb = !firstPhoto
+    ? entry.links?.find((l) => l.thumbnailUrl?.trim())?.thumbnailUrl
+    : null;
   const dateLine = formatDate(entry.createdAt);
   const title = useMemo(() => deriveTitle(entry), [entry]);
   const snippet = useMemo(() => deriveSnippet(entry), [entry]);
@@ -139,12 +146,18 @@ function EntryCard({
           style={styles.cardThumb}
           contentFit="cover"
         />
+      ) : fallbackLinkThumb ? (
+        <Image
+          source={{ uri: fallbackLinkThumb }}
+          style={styles.cardThumb}
+          contentFit="cover"
+        />
       ) : (
         <View style={[styles.cardThumb, { backgroundColor: palette.surfaceDim }]}>
           <ThemedText
             type="eyebrow"
             style={{ color: palette.placeholder, letterSpacing: 1.6 }}>
-            NOTE
+            {linkCount > 0 ? 'LINK' : 'NOTE'}
           </ThemedText>
         </View>
       )}

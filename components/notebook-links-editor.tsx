@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useEffect, useRef, useState } from 'react';
@@ -239,6 +240,11 @@ function LinkRow({
 }) {
   const host = extractHost(link.url);
   const label = link.title?.trim() || host;
+  const [thumbFailed, setThumbFailed] = useState(false);
+  // Show the thumbnail when we have one and it loaded; collapse the
+  // slot entirely otherwise so the row stays compact for link-only
+  // entries with no metadata.
+  const showThumb = !!link.thumbnailUrl && !thumbFailed;
   return (
     <View
       style={[
@@ -252,20 +258,37 @@ function LinkRow({
           { opacity: pressed ? 0.7 : 1 },
           hovered ? ({ cursor: 'pointer' } as object) : null,
         ]}>
-        <View style={styles.rowMainHeader}>
-          <ThemedText type="defaultSemiBold" numberOfLines={1} style={{ flex: 1 }}>
-            {label}
+        {showThumb ? (
+          <View
+            style={[
+              styles.rowThumbWrap,
+              { backgroundColor: palette.surfaceDim },
+            ]}>
+            <Image
+              source={{ uri: link.thumbnailUrl }}
+              style={styles.rowThumb}
+              contentFit="cover"
+              transition={200}
+              onError={() => setThumbFailed(true)}
+            />
+          </View>
+        ) : null}
+        <View style={styles.rowText}>
+          <View style={styles.rowMainHeader}>
+            <ThemedText type="defaultSemiBold" numberOfLines={2} style={{ flex: 1 }}>
+              {label}
+            </ThemedText>
+            {enriching ? (
+              <ActivityIndicator size="small" color={palette.textMuted} />
+            ) : null}
+          </View>
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted, marginTop: 2 }}
+            numberOfLines={1}>
+            {enriching && !link.title ? 'Fetching title…' : host}
           </ThemedText>
-          {enriching ? (
-            <ActivityIndicator size="small" color={palette.textMuted} />
-          ) : null}
         </View>
-        <ThemedText
-          type="metadata"
-          style={{ color: palette.textMuted, marginTop: 2 }}
-          numberOfLines={1}>
-          {enriching && !link.title ? 'Fetching title…' : host}
-        </ThemedText>
       </Pressable>
       <Pressable
         onPress={onRemove}
@@ -347,8 +370,27 @@ const styles = StyleSheet.create({
   },
   rowMain: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingLeft: 10,
+    paddingRight: 14,
+  },
+  rowThumbWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 4,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  rowThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  rowText: {
+    flex: 1,
+    minWidth: 0,
   },
   rowMainHeader: {
     flexDirection: 'row',

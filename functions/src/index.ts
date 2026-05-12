@@ -425,7 +425,19 @@ export const fetchLinkMetadata = onCall(
     const siteName = extractMeta(html, 'og:site_name');
     const description =
       extractMeta(html, 'og:description') ?? extractMeta(html, 'description');
-    const thumbnailUrl = extractMeta(html, 'og:image');
+
+    // og:image can be absolute, protocol-relative ("//cdn.foo.com/..."),
+    // or path-relative ("/wp-content/.../foo.jpg"). Resolve against the
+    // final URL so the client receives a usable absolute URL.
+    let thumbnailUrl: string | undefined;
+    const rawThumb = extractMeta(html, 'og:image');
+    if (rawThumb) {
+      try {
+        thumbnailUrl = new URL(rawThumb, finalUrl).toString();
+      } catch {
+        thumbnailUrl = undefined;
+      }
+    }
 
     if (!title && !siteName && !description && !thumbnailUrl) {
       return { ok: false, reason: 'no-metadata', finalUrl };
