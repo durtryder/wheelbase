@@ -542,6 +542,68 @@ async function fetchPageHtml(url: string): Promise<{ html: string; finalUrl: str
 }
 
 /**
+ * True for Bring a Trailer listing URLs. Used to gate the per-link
+ * comments-feed fetch.
+ */
+function isBaTListing(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      (u.hostname === 'bringatrailer.com' ||
+        u.hostname === 'www.bringatrailer.com') &&
+      u.pathname.startsWith('/listing/')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Map a BaT listing URL to its per-listing comments RSS feed
+ * (`<listing>/feed/`). BaT publishes the most-recent ~12 comments
+ * there as clean XML — much cheaper to ingest than scraping the
+ * 400KB listing HTML, and reaches content our text cap would
+ * otherwise truncate.
+ */
+async function fetchBaTComments(
+  listingUrl: string,
+): Promise<{ author: string; text: string }[]> {
+  const u = new URL(listingUrl);
+  if (!u.pathname.endsWith('/')) u.pathname += '/';
+  u.pathname += 'feed/';
+  const feedUrl = u.toString();
+
+  const res = await fetch(feedUrl, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (compatible; WheelbaseBot/1.0; +https://wheelba.se)',
+      Accept: 'application/rss+xml,application/xml,text/xml',
+    },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok) return [];
+  const xml = await res.text();
+  const parsed = parser.parse(xml);
+  const items = parsed?.rss?.channel?.item;
+  if (!items) return [];
+  const arr = (Array.isArray(items) ? items : [items]) as Record<
+    string,
+    unknown
+  >[];
+
+  const PER_COMMENT_CAP = 600;
+  return arr
+    .map((item) => {
+      const author =
+        pickString(item['dc:creator'], item.author) ?? 'anonymous';
+      const raw = pickString(item.description) ?? '';
+      const text = stripHtml(raw).replace(/\s+/g, ' ').slice(0, PER_COMMENT_CAP);
+      return { author, text };
+    })
+    .filter((c) => c.text.length > 0);
+}
+
+/**
  * Lossy HTML → text. Strips scripts/styles/heads, collapses tags,
  * decodes the entity subset we care about, and normalises whitespace.
  * Good enough for feeding into Claude — not a reader-mode parser.
@@ -657,12 +719,37 @@ export const summarizeNotebookEntry = onCall(
 
     // Fetch each link's body in parallel. Cap per-page text so we
     // don't blow Claude's context with a 50KB BaT listing × N links.
+    // For BaT listings, also pull the comments RSS feed — comments
+    // sit ~260KB into the listing HTML and aren't reached by our
+    // text cap, so without this step Claude only sees the seller's
+    // description. The feed gives us the most-recent ~12 comments
+    // in clean XML, which is where the real signal lives (expert
+    // observations, condition red flags, bidding chatter).
     const PER_PAGE_TEXT_CAP = 24_000;
     const pages = await Promise.all(
       links.map(async (link) => {
         try {
           const { html, finalUrl } = await fetchPageHtml(link.url);
-          const text = htmlToText(html).slice(0, PER_PAGE_TEXT_CAP);
+          let text = htmlToText(html).slice(0, PER_PAGE_TEXT_CAP);
+
+          if (isBaTListing(link.url)) {
+            try {
+              const comments = await fetchBaTComments(link.url);
+              if (comments.length > 0) {
+                const formatted = comments
+                  .map((c) => `- ${c.author}: ${c.text}`)
+                  .join('\n');
+                text += `\n\nRecent comments (most recent first):\n${formatted}`;
+              }
+            } catch (e) {
+              console.warn(
+                '[summarize] BaT comments fetch failed',
+                link.url,
+                e,
+              );
+            }
+          }
+
           return { link, text, finalUrl };
         } catch (e) {
           console.warn('[summarize] link fetch failed', link.url, e);
@@ -710,7 +797,7 @@ export const summarizeNotebookEntry = onCall(
       "to produce a focused, factual summary of what they've collected.",
       '',
       'Output format:',
-      "- 2–4 short paragraphs of plain text. No markdown headers, no",
+      "- 2–5 short paragraphs of plain text. No markdown headers, no",
       '  bullet lists, no emoji.',
       '- Pull specific facts when the source is a listing: year, make,',
       '  model, trim, mileage, location, engine/transmission, condition,',
@@ -721,6 +808,19 @@ export const summarizeNotebookEntry = onCall(
       '- If a page could not be fetched, acknowledge that briefly and',
       "  summarize from the URL/title alone if useful, otherwise skip.",
       '- Do not invent details. If something is unclear, say so.',
+      '',
+      "Auction comments (when present — typically Bring a Trailer):",
+      "- A 'Recent comments' section may follow the page contents. These",
+      "  are the most recent buyer/observer comments on the listing and",
+      "  are valuable signal. Treat them as a separate paragraph in your",
+      "  summary.",
+      "- Surface: condition concerns or red flags raised by commenters,",
+      "  expert observations (provenance, originality, mechanical),",
+      "  bidding momentum or notable bid placements, seller responses",
+      "  to questions, and any consensus on value or authenticity.",
+      "- Attribute the signal to commenters generally ('commenters",
+      "  flagged...'), not by name. Be honest if the comments are",
+      "  unremarkable or mostly cheerleading.",
     ].join('\n');
 
     try {
