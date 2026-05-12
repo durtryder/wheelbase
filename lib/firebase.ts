@@ -4,6 +4,7 @@ import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
 // @ts-expect-error — getReactNativePersistence is exported at runtime but not in the web types bundle
 import { getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
@@ -36,3 +37,8 @@ function initDb() {
 export const db = initDb();
 
 export const storage = getStorage(app);
+
+// us-central1 is the Firebase default for Cloud Functions and matches
+// where our scheduled syncs already live. Specifying it explicitly here
+// avoids a region-detect round-trip on every callable invocation.
+export const functions = getFunctions(app, 'us-central1');

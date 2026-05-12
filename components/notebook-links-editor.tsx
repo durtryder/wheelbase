@@ -1,11 +1,28 @@
 import { Timestamp } from 'firebase/firestore';
-import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { httpsCallable } from 'firebase/functions';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { functions } from '@/lib/firebase';
 import type { NotebookLink } from '@/types/notebook';
+
+type LinkMetadataResult = {
+  ok: boolean;
+  reason?: string;
+  title?: string;
+  siteName?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  finalUrl?: string;
+};
+
+const fetchLinkMetadata = httpsCallable<
+  { url: string },
+  LinkMetadataResult
+>(functions, 'fetchLinkMetadata');
 
 type Palette = (typeof Colors)['light'];
 
@@ -38,11 +55,62 @@ export function NotebookLinksEditor({
   const [draftUrl, setDraftUrl] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Set of link ids currently being enriched server-side; drives the
+  // "Fetching title…" spinner inside the row while the callable runs.
+  const [enriching, setEnriching] = useState<Set<string>>(() => new Set());
+
+  // The async metadata fetch finishes after one or more re-renders of
+  // this component, so the `links` prop we captured at call time is
+  // stale. Mirror it into a ref so the patch logic always splices into
+  // the latest array the parent owns.
+  const linksRef = useRef(links);
+  useEffect(() => {
+    linksRef.current = links;
+  }, [links]);
 
   function resetDraft() {
     setDraftUrl('');
     setDraftTitle('');
     setError(null);
+  }
+
+  async function enrichLink(id: string, url: string, fillTitle: boolean) {
+    setEnriching((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    try {
+      const res = await fetchLinkMetadata({ url });
+      const data = res.data;
+      if (!data?.ok) return;
+      // Patch the link by id in the latest array. If the row was
+      // removed while the fetch was in flight, no-op.
+      const current = linksRef.current;
+      const next = current.map((l) =>
+        l.id === id
+          ? {
+              ...l,
+              title: fillTitle && data.title ? data.title : l.title,
+              siteName: data.siteName ?? l.siteName,
+              description: data.description ?? l.description,
+              thumbnailUrl: data.thumbnailUrl ?? l.thumbnailUrl,
+              // If the page redirected, store the final URL we landed on.
+              url: data.finalUrl ?? l.url,
+            }
+          : l,
+      );
+      onChange(next);
+    } catch (e) {
+      console.warn('[links] metadata fetch failed', e);
+    } finally {
+      setEnriching((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   }
 
   function handleAdd() {
@@ -51,15 +119,19 @@ export function NotebookLinksEditor({
       setError('Enter a valid URL (e.g., bringatrailer.com/listing/...).');
       return;
     }
+    const userTitle = draftTitle.trim();
     const link: NotebookLink = {
       id: generateLinkId(),
       url: normalized,
-      title: draftTitle.trim() || undefined,
+      title: userTitle || undefined,
       addedAt: Timestamp.now(),
     };
     onChange([...links, link]);
     resetDraft();
     setEditing(false);
+    // Fire-and-forget enrichment. Only auto-fill the title if the user
+    // didn't supply one — never overwrite their intent.
+    void enrichLink(link.id, normalized, !userTitle);
   }
 
   function handleRemove(id: string) {
@@ -74,6 +146,7 @@ export function NotebookLinksEditor({
             <LinkRow
               key={link.id}
               link={link}
+              enriching={enriching.has(link.id)}
               onOpen={() => openExternal(link.url)}
               onRemove={() => handleRemove(link.id)}
               palette={palette}
@@ -153,11 +226,13 @@ export function NotebookLinksEditor({
 
 function LinkRow({
   link,
+  enriching,
   onOpen,
   onRemove,
   palette,
 }: {
   link: NotebookLink;
+  enriching: boolean;
   onOpen: () => void;
   onRemove: () => void;
   palette: Palette;
@@ -177,14 +252,19 @@ function LinkRow({
           { opacity: pressed ? 0.7 : 1 },
           hovered ? ({ cursor: 'pointer' } as object) : null,
         ]}>
-        <ThemedText type="defaultSemiBold" numberOfLines={1}>
-          {label}
-        </ThemedText>
+        <View style={styles.rowMainHeader}>
+          <ThemedText type="defaultSemiBold" numberOfLines={1} style={{ flex: 1 }}>
+            {label}
+          </ThemedText>
+          {enriching ? (
+            <ActivityIndicator size="small" color={palette.textMuted} />
+          ) : null}
+        </View>
         <ThemedText
           type="metadata"
           style={{ color: palette.textMuted, marginTop: 2 }}
           numberOfLines={1}>
-          {host}
+          {enriching && !link.title ? 'Fetching title…' : host}
         </ThemedText>
       </Pressable>
       <Pressable
@@ -269,6 +349,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  rowMainHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   removeButton: {
     width: 40,
