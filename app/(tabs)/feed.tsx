@@ -10,7 +10,9 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { watchFeedForUser } from '@/services/feed';
+import { watchUserFeedReactions } from '@/services/feed-reactions';
 import { watchVehiclesForOwner } from '@/services/vehicles';
+import type { FeedReaction } from '@/types/feed-reaction';
 import type { ScoredFeedItem } from '@/types/feed';
 import type { Vehicle } from '@/types/vehicle';
 
@@ -21,6 +23,9 @@ export default function FeedScreen() {
   const { user, loading: authLoading } = useAuth();
   const [userVehicles, setUserVehicles] = useState<Vehicle[]>([]);
   const [feedItems, setFeedItems] = useState<ScoredFeedItem[] | null>(null);
+  const [reactions, setReactions] = useState<Map<string, FeedReaction>>(
+    () => new Map(),
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +54,20 @@ export default function FeedScreen() {
       (e) => setError(e.message),
     );
   }, [user, userVehicles]);
+
+  // One subscription to all of the user's feed reactions — cards look
+  // up their own row in the Map by feedItemId in O(1).
+  useEffect(() => {
+    if (!user) {
+      setReactions(new Map());
+      return;
+    }
+    return watchUserFeedReactions(
+      user.uid,
+      setReactions,
+      (e) => console.warn('[feed] reactions sub failed', e),
+    );
+  }, [user]);
 
   const isLoading = authLoading || (user && feedItems === null);
   const garageEmpty = !!user && userVehicles.length === 0;
@@ -88,6 +107,8 @@ export default function FeedScreen() {
                       key={`article_${item.id}`}
                       article={item}
                       isGarageMatch={isMatch}
+                      userId={user?.uid}
+                      reaction={reactions.get(item.id)}
                     />
                   );
                 case 'bat_listing':
@@ -96,6 +117,8 @@ export default function FeedScreen() {
                       key={`bat_${item.id}`}
                       listing={item}
                       isGarageMatch={isMatch}
+                      userId={user?.uid}
+                      reaction={reactions.get(item.id)}
                     />
                   );
                 case 'garage_media':

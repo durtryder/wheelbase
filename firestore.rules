@@ -82,6 +82,26 @@ service cloud.firestore {
                     && request.auth.uid == resource.data.ownerId;
     }
 
+    // Feed reactions — one doc per (user, feed item) tracking thumbs and
+    // saved-to-Notebook state. Strictly owner-only across the board.
+    // Doc id is `<userId>_<feedItemId>` but we still match on the
+    // userId FIELD for defense-in-depth.
+    match /feedReactions/{reactionId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId
+                    && request.resource.data.keys().hasAll(['userId', 'feedItemId', 'feedItemKind']);
+
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.userId
+                    && request.resource.data.userId == resource.data.userId;
+
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
+
     // User profile docs — public read (so /u/{uid} can show social links),
     // self-write only. Doc ID is the user's UID.
     match /users/{uid} {

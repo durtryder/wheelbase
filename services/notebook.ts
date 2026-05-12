@@ -21,7 +21,7 @@ import {
 } from 'firebase/storage';
 
 import { db, storage } from '@/lib/firebase';
-import type { NotebookEntry, NotebookPhoto } from '@/types/notebook';
+import type { NotebookEntry, NotebookLink, NotebookPhoto } from '@/types/notebook';
 
 const ENTRIES = 'notebookEntries';
 
@@ -195,6 +195,36 @@ export async function removePhotoFromEntry(
   const next = entry.photos.filter((p) => p.id !== photoId);
   await updateNotebookEntry(entry.id, { photos: next });
   return next;
+}
+
+/**
+ * Spawn a new Notebook entry from a Feed item — used by the "+ save"
+ * action on news / BaT cards. Builds a single-link entry seeded with
+ * the source's title, host display, and hero image so the entry's
+ * list card looks rich immediately without a metadata round-trip.
+ */
+export async function saveFeedItemToNotebook(args: {
+  ownerId: string;
+  title: string;
+  url: string;
+  siteName?: string;
+  thumbnailUrl?: string;
+}): Promise<string> {
+  const { ownerId, title, url, siteName, thumbnailUrl } = args;
+  const link: NotebookLink = {
+    id: generateId(),
+    url,
+    title: title.trim() || undefined,
+    siteName: siteName?.trim() || undefined,
+    thumbnailUrl: thumbnailUrl?.trim() || undefined,
+    addedAt: Timestamp.now(),
+  };
+  return createNotebookEntry({
+    ownerId,
+    title: title.trim() || undefined,
+    photos: [],
+    links: [link],
+  });
 }
 
 // ---------- internals ----------

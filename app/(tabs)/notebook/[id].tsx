@@ -225,13 +225,11 @@ export default function NotebookEntryScreen() {
         vehicleId: vehicleId,
         links: links.length > 0 ? links : undefined,
       });
-      setEntry({
-        ...entry,
-        title: title.trim() || undefined,
-        body: body.trim() || undefined,
-        vehicleId: vehicleId,
-        links: links.length > 0 ? links : undefined,
-      });
+      // Send the user back to the notebook home so the save feels
+      // committed. Replace (not push) so the back button doesn't take
+      // them right back into the editor.
+      router.replace('/notebook' as Href);
+      return;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
     } finally {

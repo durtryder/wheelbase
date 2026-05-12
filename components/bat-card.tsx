@@ -3,18 +3,26 @@ import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser'
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { FeedCardActions } from '@/components/feed-card-actions';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { feedThumbnailUrl } from '@/lib/feed-image';
+import type { FeedReaction } from '@/types/feed-reaction';
 import type { BaTListing } from '@/types/feed';
 
 export function BaTCard({
   listing,
   isGarageMatch,
+  userId,
+  reaction,
 }: {
   listing: BaTListing;
   isGarageMatch: boolean;
+  /** When signed-in, allows the user to react / save. Undefined for
+   *  signed-out viewers — action bar is hidden in that case. */
+  userId?: string;
+  reaction?: FeedReaction;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -98,6 +106,15 @@ export function BaTCard({
           style={{ color: palette.textMuted, marginTop: 12 }}>
           {formatRelativeTime(listing.publishedAt.toMillis())}
         </ThemedText>
+
+        {userId ? (
+          <FeedCardActions
+            userId={userId}
+            feedItem={listing}
+            existingReaction={reaction}
+            palette={palette}
+          />
+        ) : null}
       </View>
     </Pressable>
   );
