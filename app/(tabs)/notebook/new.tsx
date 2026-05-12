@@ -224,6 +224,14 @@ export default function NewNotebookEntryScreen() {
           <NotebookLinksEditor
             links={links}
             onChange={setLinks}
+            onLinkEnriched={(enriched) => {
+              // Auto-fill the entry title from the first enriched link,
+              // but only if the user hasn't typed one themselves. Never
+              // overwrite their input.
+              if (!title.trim() && enriched.title?.trim()) {
+                setTitle(enriched.title.trim());
+              }
+            }}
             palette={palette}
           />
         </View>

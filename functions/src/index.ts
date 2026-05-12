@@ -1,7 +1,14 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { XMLParser } from 'fast-xml-parser';
 import * as admin from 'firebase-admin';
+import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+
+/** Anthropic API key, bound to summarizeNotebookEntry (and any future
+ *  AI-powered callable). Set via `firebase functions:secrets:set
+ *  ANTHROPIC_API_KEY`. */
+const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -451,5 +458,319 @@ export const fetchLinkMetadata = onCall(
       thumbnailUrl,
       finalUrl,
     };
+  },
+);
+
+// ===========================================================================
+// summarizeNotebookEntry — HTTPS callable that asks Claude to summarize what
+// a notebook entry's links and notes are about. First real use of the
+// Anthropic API in this project; future research-style features (deeper
+// fetches, web search, compatibility-checks per saved part) will sit
+// alongside this one and reuse the same fetch / text helpers.
+// ===========================================================================
+
+/**
+ * Fetch a URL server-side with the same safety profile as
+ * fetchLinkMetadata (8s timeout, SSRF guard, 256 KB cap) and return
+ * the raw HTML body. Caller is responsible for converting to text.
+ * Throws on transport or invalid-URL errors.
+ */
+async function fetchPageHtml(url: string): Promise<{ html: string; finalUrl: string }> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('invalid URL');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('only http(s) allowed');
+  }
+  if (looksLikeInternalHost(parsed.hostname)) {
+    throw new Error('private addresses not allowed');
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch(parsed.toString(), {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; WheelbaseBot/1.0; +https://wheelba.se)',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
+      },
+      redirect: 'follow',
+    });
+
+    if (!res.ok) throw new Error(`http_${res.status}`);
+    const ct = (res.headers.get('content-type') ?? '').toLowerCase();
+    if (!ct.includes('text/html') && !ct.includes('application/xhtml')) {
+      throw new Error('not-html');
+    }
+
+    const body = res.body;
+    if (!body) throw new Error('no-body');
+
+    const limit = 512 * 1024; // a bit more than fetchLinkMetadata since
+                              // we want body text, not just <head>
+    const reader = body.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const chunks: string[] = [];
+    let total = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      chunks.push(decoder.decode(value, { stream: true }));
+      if (total >= limit) {
+        try {
+          await reader.cancel();
+        } catch {
+          /* ignore */
+        }
+        break;
+      }
+    }
+    chunks.push(decoder.decode());
+    return { html: chunks.join(''), finalUrl: res.url || parsed.toString() };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Lossy HTML → text. Strips scripts/styles/heads, collapses tags,
+ * decodes the entity subset we care about, and normalises whitespace.
+ * Good enough for feeding into Claude — not a reader-mode parser.
+ */
+function htmlToText(html: string): string {
+  let s = html;
+  // Drop noisy sections wholesale.
+  s = s.replace(/<script\b[\s\S]*?<\/script>/gi, ' ');
+  s = s.replace(/<style\b[\s\S]*?<\/style>/gi, ' ');
+  s = s.replace(/<noscript\b[\s\S]*?<\/noscript>/gi, ' ');
+  s = s.replace(/<head\b[\s\S]*?<\/head>/gi, ' ');
+  // Block-level tags → newline so paragraphs survive.
+  s = s.replace(/<\/(p|div|li|h[1-6]|tr|br)[^>]*>/gi, '\n');
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  // Drop everything else.
+  s = s.replace(/<[^>]+>/g, ' ');
+  s = decodeEntities(s);
+  // Collapse runs of whitespace; preserve paragraph breaks.
+  s = s.replace(/[ \t]+/g, ' ');
+  s = s.replace(/\n[ \t]+/g, '\n');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
+type SummarizeRequest = { entryId: string };
+
+type SummarizeLink = {
+  id: string;
+  url: string;
+  title?: string;
+  siteName?: string;
+};
+
+type SummarizeEntry = {
+  ownerId: string;
+  title?: string;
+  body?: string;
+  vehicleId?: string;
+  links?: SummarizeLink[];
+};
+
+type ResearchSource = { title?: string; url: string };
+
+type ResearchRecord = {
+  status: 'complete' | 'error';
+  fetchedAt: admin.firestore.Timestamp;
+  summary?: string;
+  sources?: ResearchSource[];
+  errorMessage?: string;
+};
+
+export const summarizeNotebookEntry = onCall(
+  {
+    maxInstances: 5,
+    timeoutSeconds: 120,
+    memory: '512MiB',
+    secrets: [anthropicApiKey],
+  },
+  async (request): Promise<{
+    ok: boolean;
+    research?: ResearchRecord;
+    error?: string;
+  }> => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Sign in required.');
+    }
+
+    const payload = request.data as Partial<SummarizeRequest> | undefined;
+    const entryId = String(payload?.entryId ?? '').trim();
+    if (!entryId) {
+      throw new HttpsError('invalid-argument', 'entryId required');
+    }
+
+    const ref = db.collection('notebookEntries').doc(entryId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new HttpsError('not-found', 'Entry not found.');
+    }
+    const entry = snap.data() as SummarizeEntry;
+    if (entry.ownerId !== request.auth.uid) {
+      throw new HttpsError('permission-denied', 'Not your entry.');
+    }
+
+    const links = entry.links ?? [];
+    if (links.length === 0 && !entry.body?.trim()) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Add at least one link or some notes before requesting a summary.',
+      );
+    }
+
+    // Optional vehicle context — pulls the linked car's identity so
+    // Claude can write things like "given this is being saved against
+    // a 996 911, ..." instead of summarizing blind.
+    let vehicleContext: string | undefined;
+    if (entry.vehicleId) {
+      try {
+        const vSnap = await db.collection('vehicles').doc(entry.vehicleId).get();
+        if (vSnap.exists) {
+          const v = vSnap.data() as {
+            year?: number;
+            make?: string;
+            model?: string;
+            trim?: string;
+          };
+          const parts = [v.year, v.make, v.model, v.trim].filter(Boolean);
+          if (parts.length) vehicleContext = parts.join(' ');
+        }
+      } catch (e) {
+        console.warn('[summarize] vehicle lookup failed', e);
+      }
+    }
+
+    // Fetch each link's body in parallel. Cap per-page text so we
+    // don't blow Claude's context with a 50KB BaT listing × N links.
+    const PER_PAGE_TEXT_CAP = 24_000;
+    const pages = await Promise.all(
+      links.map(async (link) => {
+        try {
+          const { html, finalUrl } = await fetchPageHtml(link.url);
+          const text = htmlToText(html).slice(0, PER_PAGE_TEXT_CAP);
+          return { link, text, finalUrl };
+        } catch (e) {
+          console.warn('[summarize] link fetch failed', link.url, e);
+          return {
+            link,
+            text: '',
+            finalUrl: link.url,
+            fetchError: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }),
+    );
+
+    const linksBlock = pages
+      .map((p, i) => {
+        const header = [
+          `[${i + 1}] ${p.link.title || p.link.url}`,
+          `URL: ${p.finalUrl}`,
+          p.link.siteName ? `Site: ${p.link.siteName}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const body = p.text
+          ? `Page contents:\n${p.text}`
+          : `(Could not fetch this page: ${
+              'fetchError' in p ? p.fetchError : 'no body'
+            })`;
+        return `${header}\n\n${body}`;
+      })
+      .join('\n\n----\n\n');
+
+    const userPrompt = [
+      entry.title ? `User's title: ${entry.title}` : null,
+      entry.body ? `User's notes:\n${entry.body}` : null,
+      vehicleContext ? `Linked vehicle: ${vehicleContext}` : null,
+      links.length > 0 ? `Saved links:\n\n${linksBlock}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const system = [
+      "You are a car-enthusiast research assistant. The user has saved",
+      "a private notebook entry containing notes and/or links to car",
+      "listings, parts, vendors, news, or forum threads. Your job is",
+      "to produce a focused, factual summary of what they've collected.",
+      '',
+      'Output format:',
+      "- 2–4 short paragraphs of plain text. No markdown headers, no",
+      '  bullet lists, no emoji.',
+      '- Pull specific facts when the source is a listing: year, make,',
+      '  model, trim, mileage, location, engine/transmission, condition,',
+      "  price or current bid. For parts: brand, model number, fitment,",
+      "  price, vendor. For news: the key claims.",
+      '- If the user provided their own notes, weave them in but',
+      "  prioritize what the linked sources actually say.",
+      '- If a page could not be fetched, acknowledge that briefly and',
+      "  summarize from the URL/title alone if useful, otherwise skip.",
+      '- Do not invent details. If something is unclear, say so.',
+    ].join('\n');
+
+    try {
+      const client = new Anthropic({ apiKey: anthropicApiKey.value() });
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 2048,
+        system,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+
+      const summary = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('\n')
+        .trim();
+
+      const sources: ResearchSource[] = links.map((l) => ({
+        title: l.title || l.siteName || l.url,
+        url: l.url,
+      }));
+
+      const research: ResearchRecord = {
+        status: 'complete',
+        fetchedAt: admin.firestore.Timestamp.now(),
+        summary,
+        sources,
+      };
+
+      await ref.update({
+        research,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log(`[summarize] entry=${entryId} tokens=${response.usage?.input_tokens ?? '?'}/${response.usage?.output_tokens ?? '?'}`);
+
+      return { ok: true, research };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error('[summarize] failed', message);
+      const research: ResearchRecord = {
+        status: 'error',
+        fetchedAt: admin.firestore.Timestamp.now(),
+        errorMessage: message,
+      };
+      try {
+        await ref.update({ research });
+      } catch (writeErr) {
+        console.warn('[summarize] failed to write error record', writeErr);
+      }
+      return { ok: false, research, error: message };
+    }
   },
 );

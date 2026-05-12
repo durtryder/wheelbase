@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 
+import { httpsCallable } from 'firebase/functions';
+
 import { FormField } from '@/components/form-field';
 import { NotebookLinksEditor } from '@/components/notebook-links-editor';
 import { ThemedText } from '@/components/themed-text';
@@ -18,6 +20,7 @@ import { VehicleLinker } from '@/components/vehicle-linker';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { functions } from '@/lib/firebase';
 import {
   deleteNotebookEntry,
   getNotebookEntry,
@@ -25,7 +28,17 @@ import {
   updateNotebookEntry,
   uploadNotebookPhoto,
 } from '@/services/notebook';
-import type { NotebookEntry, NotebookLink, NotebookPhoto } from '@/types/notebook';
+import type {
+  NotebookEntry,
+  NotebookLink,
+  NotebookPhoto,
+  ResearchRecord,
+} from '@/types/notebook';
+
+const summarizeNotebookEntry = httpsCallable<
+  { entryId: string },
+  { ok: boolean; research?: ResearchRecord; error?: string }
+>(functions, 'summarizeNotebookEntry');
 
 export default function NotebookEntryScreen() {
   const router = useRouter();
@@ -46,6 +59,12 @@ export default function NotebookEntryScreen() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // AI summary state — kicked off by the user, fulfilled by the
+  // summarizeNotebookEntry callable. Local 'busy' covers the in-flight
+  // window; the persisted result (or error) lives on entry.research
+  // and is refreshed when the callable returns.
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     current: number;
@@ -252,6 +271,31 @@ export default function NotebookEntryScreen() {
     }
   }
 
+  async function handleSummarize() {
+    if (!entry || summarizing) return;
+    setSummarizing(true);
+    setSummaryError(null);
+    try {
+      const res = await summarizeNotebookEntry({ entryId: entry.id });
+      const data = res.data;
+      if (data?.research) {
+        // Reflect the new research record locally so the panel
+        // re-renders without a round-trip.
+        setEntry({ ...entry, research: data.research });
+      }
+      if (data && !data.ok) {
+        setSummaryError(data.error ?? 'AI summary failed.');
+      }
+    } catch (e) {
+      console.warn('[notebook] summarize failed', e);
+      setSummaryError(
+        e instanceof Error ? e.message : 'AI summary failed.',
+      );
+    } finally {
+      setSummarizing(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -362,31 +406,23 @@ export default function NotebookEntryScreen() {
           <NotebookLinksEditor
             links={links}
             onChange={setLinks}
+            onLinkEnriched={(enriched) => {
+              if (!title.trim() && enriched.title?.trim()) {
+                setTitle(enriched.title.trim());
+              }
+            }}
             palette={palette}
           />
         </View>
 
-        {/* Research placeholder — Phase 2 will replace this with an
-            actual "Research with AI" button + summary panel. Showing
-            it now keeps the UX shape stable so users see where the
-            feature is going. */}
-        <View
-          style={[
-            styles.researchCard,
-            { borderColor: palette.border, backgroundColor: palette.surfaceDim },
-          ]}>
-          <ThemedText type="eyebrow" style={{ color: palette.tint }}>
-            AI research · coming soon
-          </ThemedText>
-          <ThemedText
-            type="metadata"
-            style={{ color: palette.textMuted, marginTop: 6, lineHeight: 20 }}>
-            In a future update, you&apos;ll be able to trigger an AI agent to
-            scan this entry, search the web, and attach what it finds —
-            specs, compatibility, install notes, vendors. Per-entry trigger
-            now; periodic scanning later.
-          </ThemedText>
-        </View>
+        <ResearchPanel
+          research={entry.research}
+          busy={summarizing}
+          error={summaryError}
+          canRun={(entry.links?.length ?? 0) > 0 || !!entry.body?.trim()}
+          palette={palette}
+          onRun={handleSummarize}
+        />
 
         {error ? (
           <ThemedText type="metadata" style={{ color: palette.tint, textAlign: 'center' }}>
@@ -436,6 +472,168 @@ export default function NotebookEntryScreen() {
       </ScrollView>
     </ThemedView>
   );
+}
+
+/**
+ * Research panel — the AI summary surface on an entry. Four states:
+ *
+ *   - busy=true     → spinner + "Reading your saved links…"
+ *   - error         → red message + Try again
+ *   - record exists → render summary paragraphs + sources + footer
+ *                     (timestamp, refresh link)
+ *   - else          → CTA button to generate summary (disabled when
+ *                     the entry has neither links nor a body — Claude
+ *                     needs *something* to work with)
+ */
+function ResearchPanel({
+  research,
+  busy,
+  error,
+  canRun,
+  palette,
+  onRun,
+}: {
+  research: ResearchRecord | undefined;
+  busy: boolean;
+  error: string | null;
+  canRun: boolean;
+  palette: (typeof Colors)['light'];
+  onRun: () => void;
+}) {
+  // Date formatting (Firestore Timestamp | already-Date | something else).
+  const lastRun = research?.fetchedAt
+    ? formatFetchedAt(research.fetchedAt as unknown as { toDate?: () => Date })
+    : null;
+
+  return (
+    <View
+      style={[
+        styles.researchCard,
+        { borderColor: palette.border, backgroundColor: palette.surfaceDim },
+      ]}>
+      <View style={styles.researchHeader}>
+        <ThemedText type="eyebrow" style={{ color: palette.tint }}>
+          AI Summary
+        </ThemedText>
+        {research?.status === 'complete' && !busy ? (
+          <Pressable
+            onPress={onRun}
+            style={({ hovered, pressed }) => [
+              { opacity: pressed ? 0.7 : 1 },
+              hovered ? ({ cursor: 'pointer' } as object) : null,
+            ]}>
+            <ThemedText
+              type="metadata"
+              style={{
+                color: palette.tint,
+                fontWeight: '600',
+                letterSpacing: 1,
+                textDecorationLine: 'underline',
+              }}>
+              REFRESH
+            </ThemedText>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {busy ? (
+        <View style={styles.researchBusy}>
+          <ActivityIndicator color={palette.tint} />
+          <ThemedText type="metadata" style={{ color: palette.textMuted, marginLeft: 10 }}>
+            Reading your saved links and writing a summary…
+          </ThemedText>
+        </View>
+      ) : research?.status === 'complete' && research.summary?.trim() ? (
+        <View style={{ gap: 12 }}>
+          {research.summary
+            .split(/\n{2,}/)
+            .map((para, i) => (
+              <ThemedText
+                key={i}
+                type="default"
+                style={{ color: palette.text, lineHeight: 22 }}>
+                {para.trim()}
+              </ThemedText>
+            ))}
+          {research.sources && research.sources.length > 0 ? (
+            <View style={styles.researchSources}>
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.textMuted, marginBottom: 4 }}>
+                Sources:
+              </ThemedText>
+              {research.sources.map((s, i) => (
+                <ThemedText
+                  key={i}
+                  type="metadata"
+                  style={{ color: palette.tint }}
+                  numberOfLines={1}>
+                  • {s.title || s.url}
+                </ThemedText>
+              ))}
+            </View>
+          ) : null}
+          {lastRun ? (
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.placeholder, marginTop: 4 }}>
+              Last researched {lastRun}
+            </ThemedText>
+          ) : null}
+        </View>
+      ) : (
+        <>
+          <ThemedText
+            type="metadata"
+            style={{ color: palette.textMuted, lineHeight: 20 }}>
+            Have Claude read your saved links and write a focused summary —
+            specs, condition, prices, key facts. Best with at least one
+            link added to this entry.
+          </ThemedText>
+          {error || research?.status === 'error' ? (
+            <ThemedText
+              type="metadata"
+              style={{ color: palette.tint, marginTop: 4 }}>
+              {error ?? research?.errorMessage ?? 'AI summary failed.'}
+            </ThemedText>
+          ) : null}
+          <View style={styles.researchAction}>
+            <Pressable
+              onPress={onRun}
+              disabled={!canRun}
+              style={[
+                styles.primaryButton,
+                {
+                  backgroundColor: palette.tint,
+                  opacity: canRun ? 1 : 0.5,
+                },
+              ]}>
+              <ThemedText style={styles.primaryButtonText}>
+                {research?.status === 'error' ? 'Try again' : 'Generate AI summary'}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function formatFetchedAt(ts: { toDate?: () => Date }): string | null {
+  if (!ts) return null;
+  try {
+    const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts as unknown as Date);
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return null;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -504,6 +702,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: 16,
+    gap: 12,
+  },
+  researchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  researchBusy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  researchSources: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+    gap: 2,
+  },
+  researchAction: {
+    flexDirection: 'row',
+    marginTop: 4,
   },
   actions: {
     flexDirection: 'row',

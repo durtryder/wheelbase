@@ -46,10 +46,18 @@ type Palette = (typeof Colors)['light'];
 export function NotebookLinksEditor({
   links,
   onChange,
+  onLinkEnriched,
   palette,
 }: {
   links: NotebookLink[];
   onChange: (next: NotebookLink[]) => void;
+  /**
+   * Fires after the Cloud Function populates a link with server-side
+   * metadata (title, siteName, description, thumbnailUrl). Lets the
+   * parent screen react — e.g., auto-fill the entry's own title field
+   * from the link's title when the user left it blank.
+   */
+  onLinkEnriched?: (enriched: NotebookLink) => void;
   palette: Palette;
 }) {
   const [editing, setEditing] = useState(false);
@@ -88,20 +96,21 @@ export function NotebookLinksEditor({
       // Patch the link by id in the latest array. If the row was
       // removed while the fetch was in flight, no-op.
       const current = linksRef.current;
-      const next = current.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              title: fillTitle && data.title ? data.title : l.title,
-              siteName: data.siteName ?? l.siteName,
-              description: data.description ?? l.description,
-              thumbnailUrl: data.thumbnailUrl ?? l.thumbnailUrl,
-              // If the page redirected, store the final URL we landed on.
-              url: data.finalUrl ?? l.url,
-            }
-          : l,
-      );
+      const enriched = current.find((l) => l.id === id);
+      const patched = enriched
+        ? {
+            ...enriched,
+            title: fillTitle && data.title ? data.title : enriched.title,
+            siteName: data.siteName ?? enriched.siteName,
+            description: data.description ?? enriched.description,
+            thumbnailUrl: data.thumbnailUrl ?? enriched.thumbnailUrl,
+            url: data.finalUrl ?? enriched.url,
+          }
+        : null;
+      if (!patched) return; // row was removed mid-flight; bail
+      const next = current.map((l) => (l.id === id ? patched : l));
       onChange(next);
+      onLinkEnriched?.(patched);
     } catch (e) {
       console.warn('[links] metadata fetch failed', e);
     } finally {
