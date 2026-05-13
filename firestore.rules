@@ -49,6 +49,22 @@ service cloud.firestore {
                             && request.auth.uid == resource.data.ownerId;
     }
 
+    // Media folders — owner-defined buckets that hold archive photos
+    // and videos belonging to a vehicle. Pure metadata; the photos
+    // themselves live in /media with folderId set. Read mirrors the
+    // parent vehicle's visibility so a public viewer who can see the
+    // vehicle can also see its folder structure.
+    match /mediaFolders/{folderId} {
+      allow read: if true;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.ownerId
+                    && request.resource.data.keys().hasAll(['vehicleId', 'ownerId', 'name']);
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
+    }
+
     // Vehicle documents — PDFs, scanned invoices, service records, etc.
     match /documents/{documentId} {
       allow read: if true;

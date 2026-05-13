@@ -55,6 +55,13 @@ type Props = {
    * `Infinity` to disable collapsing. Defaults to 3.
    */
   collapsedRowLimit?: number;
+  /**
+   * Whether the fullscreen "Show all" overlay starts with a hero
+   * photo + metadata panel above the grid. Defaults to true, matching
+   * the main vehicle gallery. Folder galleries pass false so the
+   * overlay opens straight to the justified grid — no curated cover.
+   */
+  showHero?: boolean;
 };
 
 const GAP = 4;
@@ -76,6 +83,7 @@ export function MediaGallery({
   openIndex,
   onOpenChange,
   collapsedRowLimit = DEFAULT_COLLAPSED_ROWS,
+  showHero = true,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -172,6 +180,7 @@ export function MediaGallery({
           onClose={() => setFullGalleryOpen(false)}
           onOpenLightbox={(idx) => setLightboxIndex(idx)}
           palette={palette}
+          showHero={showHero}
         />
       ) : null}
 
@@ -211,12 +220,14 @@ function FullGalleryModal({
   onClose,
   onOpenLightbox,
   palette,
+  showHero = true,
 }: {
   media: MediaItem[];
   vehicle: Vehicle;
   onClose: () => void;
   onOpenLightbox: (index: number) => void;
   palette: Palette;
+  showHero?: boolean;
 }) {
   const { width: windowWidth } = useWindowDimensions();
   // Reserve a bit of horizontal padding on every device so thumbs never
@@ -229,11 +240,14 @@ function FullGalleryModal({
   const targetRowHeight = windowWidth < 640 ? 130 : 220;
 
   // Pick the vehicle's chosen cover; fall back to first media item if
-  // no cover has been designated (e.g., videos-only vehicle).
+  // no cover has been designated (e.g., videos-only vehicle). Skipped
+  // entirely when showHero is false (folder galleries).
   const heroItem = useMemo(
     () =>
-      media.find((m) => m.id === vehicle.coverPhotoId) ?? media[0] ?? null,
-    [media, vehicle.coverPhotoId],
+      showHero
+        ? (media.find((m) => m.id === vehicle.coverPhotoId) ?? media[0] ?? null)
+        : null,
+    [media, vehicle.coverPhotoId, showHero],
   );
   const heroIndex = heroItem
     ? media.findIndex((m) => m.id === heroItem.id)

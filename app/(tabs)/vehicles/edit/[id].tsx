@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
@@ -8,8 +8,12 @@ import { VehicleForm, type VehicleFormValue } from '@/components/vehicle-form';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  createMediaFolder,
+  watchMediaFoldersForVehicle,
+} from '@/services/media';
 import { getVehicle, updateVehicle } from '@/services/vehicles';
-import type { Vehicle } from '@/types/vehicle';
+import type { MediaFolder, Vehicle } from '@/types/vehicle';
 
 export default function EditVehicleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,6 +24,10 @@ export default function EditVehicleScreen() {
 
   const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Folder list lives outside the form's local state — it's persisted
+  // independently and doesn't get re-saved with the vehicle on submit.
+  const [folders, setFolders] = useState<MediaFolder[]>([]);
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +46,32 @@ export default function EditVehicleScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    return watchMediaFoldersForVehicle(
+      id,
+      setFolders,
+      (e) => console.warn('[edit] folder sub failed', e),
+    );
+  }, [id]);
+
+  async function handleCreateFolder() {
+    if (!id || !user || creatingFolder) return;
+    setCreatingFolder(true);
+    try {
+      const folderId = await createMediaFolder({
+        vehicleId: id,
+        ownerId: user.uid,
+        name: 'Untitled folder',
+      });
+      router.push(`/vehicles/folder/${folderId}` as Href);
+    } catch (e) {
+      console.warn('[edit] create folder failed', e);
+    } finally {
+      setCreatingFolder(false);
+    }
+  }
 
   async function handleSubmit(value: VehicleFormValue) {
     if (!id) throw new Error('Missing vehicle id.');
@@ -172,6 +206,13 @@ export default function EditVehicleScreen() {
       }}
       onSubmit={handleSubmit}
       onCancel={() => router.replace(`/vehicles/${v.id}`)}
+      folders={{
+        list: folders,
+        onCreate: handleCreateFolder,
+        onOpen: (folderId) =>
+          router.push(`/vehicles/folder/${folderId}` as Href),
+        busy: creatingFolder,
+      }}
     />
   );
 }

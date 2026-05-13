@@ -557,11 +557,37 @@ export type MediaItem = {
   caption?: string;
   isHero?: boolean;
   order?: number;
+  /**
+   * When set, this media item belongs to the named folder under the
+   * same vehicle rather than the main gallery. Undefined = main
+   * gallery (the curated wall shown at the top of the detail page).
+   * Folders give the owner a place to archive deep cuts (e.g.,
+   * restoration progress shots) without crowding the share sheet.
+   */
+  folderId?: string;
   /** When the photo was captured (from EXIF); photos only. */
   takenAt?: Timestamp;
   /** Camera-ish details pulled from EXIF when available. */
   exif?: MediaExif;
   createdAt: Timestamp;
+};
+
+/**
+ * Owner-defined bucket for archive media that doesn't belong on the
+ * main gallery. Folders show as their own collapsed-row galleries
+ * below the main one on the detail page; the share sheet honors
+ * them like any other section.
+ */
+export type MediaFolder = {
+  id: string;
+  vehicleId: string;
+  ownerId: string;
+  name: string;
+  /** User-controlled position relative to sibling folders on the
+   *  same vehicle. Lower = first. Unset → fall back to createdAt. */
+  displayOrder?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };
 
 export type MediaExif = {

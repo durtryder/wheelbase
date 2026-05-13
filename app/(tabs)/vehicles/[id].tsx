@@ -23,12 +23,14 @@ import {
   setVehicleCoverPhoto,
   updateMediaCaption,
   uploadVehicleMedia,
+  watchMediaFoldersForVehicle,
   watchMediaForVehicle,
 } from '@/services/media';
 import { deleteVehicle, getVehicle, updateVehicle } from '@/services/vehicles';
 import {
   isFieldShared,
   VISIBILITY_LABELS,
+  type MediaFolder,
   type MediaItem,
   type Modification,
   type OemSpecs,
@@ -58,6 +60,7 @@ export default function VehicleDetailScreen() {
 
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [folders, setFolders] = useState<MediaFolder[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     current: number;
@@ -116,6 +119,17 @@ export default function VehicleDetailScreen() {
     return unsub;
   }, [id]);
 
+  // Subscribe to folders separately — keeps the folder list reactive
+  // when the owner adds / renames / deletes in another tab.
+  useEffect(() => {
+    if (!id) return;
+    return watchMediaFoldersForVehicle(
+      id,
+      (next) => setFolders(next),
+      (e) => console.warn('[detail] folder sub failed', e),
+    );
+  }, [id]);
+
   // Silent backfill: when the owner views one of their vehicles that was
   // saved before we started tracking ownerDisplayName (or when they changed
   // their display name since the last save), write the current name in.
@@ -141,8 +155,11 @@ export default function VehicleDetailScreen() {
   // (createdAt asc) order as the fallback for items that haven't been
   // reordered. Once an override is set we honor it directly so the dropped
   // tile sticks before the snapshot round-trips.
+  // The MAIN gallery — only items not in a folder. Folder media is
+  // filtered out here and rendered as its own gallery below.
   const sortedMedia = useMemo(() => {
-    const sorted = [...media].sort((a, b) => {
+    const mainOnly = media.filter((m) => !m.folderId);
+    const sorted = [...mainOnly].sort((a, b) => {
       const ao = a.order ?? Number.POSITIVE_INFINITY;
       const bo = b.order ?? Number.POSITIVE_INFINITY;
       if (ao === bo) return 0;
@@ -162,6 +179,29 @@ export default function VehicleDetailScreen() {
     });
     return overridden;
   }, [media, reorderOverride]);
+
+  // Group folder media by folderId so each folder can render its own
+  // gallery below the main one. Sorted by per-item order then array
+  // order so reorder edits in the folder editor are honored here.
+  const mediaByFolder = useMemo(() => {
+    const map = new Map<string, MediaItem[]>();
+    media.forEach((m) => {
+      if (!m.folderId) return;
+      const arr = map.get(m.folderId) ?? [];
+      arr.push(m);
+      map.set(m.folderId, arr);
+    });
+    map.forEach((arr, key) => {
+      arr.sort((a, b) => {
+        const ao = a.order ?? Number.POSITIVE_INFINITY;
+        const bo = b.order ?? Number.POSITIVE_INFINITY;
+        if (ao === bo) return 0;
+        return ao - bo;
+      });
+      map.set(key, arr);
+    });
+    return map;
+  }, [media]);
 
   // Drop the override once the upstream snapshot reflects it, so we go back
   // to trusting Firestore as the source of truth.
@@ -826,6 +866,76 @@ export default function VehicleDetailScreen() {
           )}
         </View>
         ) : null}
+
+        {/* Folder galleries — render in folder list order, gated by
+            the same share-sheet "photos" flag as the main gallery so
+            owners have a single switch. Folders with zero items show
+            the empty hint only to the owner; visitors don't see
+            empty buckets. */}
+        {canShow('photos')
+          ? folders.map((folder) => {
+              const folderMedia = mediaByFolder.get(folder.id) ?? [];
+              if (!showAsOwner && folderMedia.length === 0) return null;
+              return (
+                <View key={folder.id} style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.sectionHeaderRow}>
+                      <ThemedText type="subtitle">
+                        {folder.name?.trim() || 'Untitled folder'}
+                      </ThemedText>
+                      {showAsOwner ? (
+                        <Pressable
+                          onPress={() =>
+                            router.push(
+                              `/vehicles/folder/${folder.id}` as never,
+                            )
+                          }
+                          style={({ hovered }) => [
+                            { paddingVertical: 4, paddingHorizontal: 4 },
+                            hovered ? ({ cursor: 'pointer' } as object) : null,
+                          ]}>
+                          <ThemedText
+                            type="metadata"
+                            style={{
+                              color: palette.textMuted,
+                              fontWeight: '600',
+                              letterSpacing: 1,
+                              textDecorationLine: 'underline',
+                            }}>
+                            MANAGE
+                          </ThemedText>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    <View
+                      style={[
+                        styles.sectionRule,
+                        { backgroundColor: palette.border },
+                      ]}
+                    />
+                  </View>
+                  {folderMedia.length === 0 ? (
+                    <ThemedText
+                      type="metadata"
+                      style={{ color: palette.placeholder }}>
+                      No items yet — add some from the folder editor.
+                    </ThemedText>
+                  ) : (
+                    <MediaGallery
+                      media={folderMedia}
+                      vehicle={v}
+                      isOwner={showAsOwner}
+                      onSetCover={handleSetCover}
+                      onRemove={handleRemovePhoto}
+                      onUpdateCaption={handleUpdateCaption}
+                      photoActionBusy={photoActionBusy}
+                      showHero={false}
+                    />
+                  )}
+                </View>
+              );
+            })
+          : null}
 
         {canShow('buildSheet') ? (
           <View style={styles.section}>

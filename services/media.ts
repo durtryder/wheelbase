@@ -4,6 +4,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -20,9 +22,10 @@ import {
 } from 'firebase/storage';
 
 import { db, storage } from '@/lib/firebase';
-import type { MediaExif, MediaItem } from '@/types/vehicle';
+import type { MediaExif, MediaFolder, MediaItem } from '@/types/vehicle';
 
 const MEDIA = 'media';
+const MEDIA_FOLDERS = 'mediaFolders';
 const VEHICLES = 'vehicles';
 
 export type UploadKind = 'photo' | 'video';
@@ -44,6 +47,10 @@ export async function uploadVehicleMedia(params: {
   kind: UploadKind;
   ownerId: string;
   vehicleId: string;
+  /** Optional folder to attach this upload to. Undefined = main
+   *  gallery; set to a MediaFolder.id to bucket the upload under
+   *  that folder. */
+  folderId?: string;
   uri: string;
   width?: number;
   height?: number;
@@ -54,6 +61,7 @@ export async function uploadVehicleMedia(params: {
     kind,
     ownerId,
     vehicleId,
+    folderId,
     uri,
     width,
     height,
@@ -192,6 +200,7 @@ export async function uploadVehicleMedia(params: {
       durationMs,
       takenAt,
       exif: exifData,
+      folderId,
       createdAt: serverTimestamp(),
     });
     docId = docRef.id;
@@ -215,6 +224,7 @@ export async function uploadVehicleMedia(params: {
     width,
     height,
     durationMs,
+    folderId,
     // takenAt/exif intentionally omitted from optimistic return — the real
     // Firestore Timestamp + round-tripped object come in via onSnapshot
   } as MediaItem;
@@ -240,6 +250,28 @@ export function watchMediaForVehicle(
   const q = query(
     collection(db, MEDIA),
     where('vehicleId', '==', vehicleId),
+    orderBy('createdAt', 'asc'),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MediaItem);
+      onNext(items);
+    },
+    (err) => onError(err),
+  );
+}
+
+/** Subscribe to media inside a specific folder. Backed by the
+ *  (folderId asc, createdAt asc) composite index. */
+export function watchMediaForFolder(
+  folderId: string,
+  onNext: (items: MediaItem[]) => void,
+  onError: (err: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, MEDIA),
+    where('folderId', '==', folderId),
     orderBy('createdAt', 'asc'),
   );
   return onSnapshot(
@@ -319,4 +351,94 @@ function extensionFor(mimeType: string, kind: UploadKind): string {
     'image/heif': 'heif',
   };
   return map[mimeType] ?? 'jpg';
+}
+
+// ---------------------------------------------------------------------------
+// Media folders — owner-defined buckets for archive media that shouldn't
+// crowd the main gallery (restoration progress shots, full event sets, etc.).
+// Folders are pure metadata; the photos themselves live in the same MEDIA
+// collection with a `folderId` field set. Storage paths are unchanged.
+// ---------------------------------------------------------------------------
+
+/** Subscribe to a vehicle's folders. Returns unsub. */
+export function watchMediaFoldersForVehicle(
+  vehicleId: string,
+  onNext: (folders: MediaFolder[]) => void,
+  onError: (err: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, MEDIA_FOLDERS),
+    where('vehicleId', '==', vehicleId),
+    orderBy('createdAt', 'asc'),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const folders = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as MediaFolder,
+      );
+      onNext(folders);
+    },
+    (err) => onError(err),
+  );
+}
+
+/** One-shot fetch — useful for the folder editor's initial load. */
+export async function getMediaFolder(id: string): Promise<MediaFolder | null> {
+  const snap = await getDoc(doc(db, MEDIA_FOLDERS, id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as MediaFolder) : null;
+}
+
+/** Create an empty folder. Caller hands over a default name; the editor
+ *  page lets the owner rename right after. */
+export async function createMediaFolder(input: {
+  vehicleId: string;
+  ownerId: string;
+  name: string;
+}): Promise<string> {
+  const ref = await addDoc(collection(db, MEDIA_FOLDERS), {
+    ...input,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateMediaFolder(
+  id: string,
+  patch: Partial<Pick<MediaFolder, 'name' | 'displayOrder'>>,
+): Promise<void> {
+  await updateDoc(doc(db, MEDIA_FOLDERS, id), {
+    ...patch,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Delete a folder and the media inside it. Storage objects are removed
+ * first (best-effort); then a single batched delete of the Firestore
+ * media docs + the folder doc keeps the operation atomic enough that a
+ * partial failure doesn't leave dangling pointers.
+ */
+export async function deleteMediaFolder(folderId: string): Promise<void> {
+  const mediaSnap = await getDocs(
+    query(collection(db, MEDIA), where('folderId', '==', folderId)),
+  );
+  await Promise.allSettled(
+    mediaSnap.docs.map(async (d) => {
+      const item = d.data() as MediaItem;
+      if (item.storagePath) {
+        try {
+          await deleteObject(storageRef(storage, item.storagePath));
+        } catch (e) {
+          console.warn('[media] storage cleanup failed', item.storagePath, e);
+        }
+      }
+    }),
+  );
+
+  const batch = writeBatch(db);
+  mediaSnap.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(doc(db, MEDIA_FOLDERS, folderId));
+  await batch.commit();
 }

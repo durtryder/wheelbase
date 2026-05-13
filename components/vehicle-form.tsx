@@ -42,6 +42,7 @@ import {
   VISIBILITY_LABELS,
   type BuilderInfo,
   type BuildSheet,
+  type MediaFolder,
   type ModCategory,
   type Modification,
   type OemSpecs,
@@ -85,6 +86,19 @@ type Props = {
   signedIn: boolean;
   onSubmit: (value: VehicleFormValue) => Promise<void>;
   onCancel?: () => void;
+  /**
+   * Edit-mode-only folder control surface. When supplied, the form
+   * renders a "Folders" section with the current list, an Open
+   * affordance per row, and a "New folder" button that triggers
+   * onCreate. New-vehicle flow doesn't have a vehicleId yet, so this
+   * is omitted there and the section is hidden.
+   */
+  folders?: {
+    list: MediaFolder[];
+    onCreate: () => Promise<void> | void;
+    onOpen: (folderId: string) => void;
+    busy?: boolean;
+  };
 };
 
 const MOD_CATEGORIES: { value: ModCategory; label: string }[] = [
@@ -144,6 +158,7 @@ export function VehicleForm({
   signedIn,
   onSubmit,
   onCancel,
+  folders,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -742,6 +757,79 @@ export function VehicleForm({
           shareSheetShared={shareSheet.buildSheet !== false}>
           <BuildSheetForm value={buildSheet} onChange={setBuildSheet} />
         </Section>
+
+        {/* ========== Folders ========== */}
+        {folders ? (
+          <Section title="Folders" palette={palette}>
+            <ThemedText type="metadata" style={{ color: palette.textMuted }}>
+              Group archive shots — restoration progress, event sets,
+              behind-the-scenes — into folders so they don&apos;t crowd
+              the main gallery. Each folder shows up as its own gallery
+              on the vehicle page, with no hero photo.
+            </ThemedText>
+            {folders.list.length > 0 ? (
+              <View style={styles.folderList}>
+                {folders.list.map((f) => (
+                  <Pressable
+                    key={f.id}
+                    onPress={() => folders.onOpen(f.id)}
+                    style={({ hovered, pressed }) => [
+                      styles.folderRow,
+                      {
+                        borderColor: palette.border,
+                        backgroundColor: palette.surface,
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                      hovered ? ({ cursor: 'pointer' } as object) : null,
+                    ]}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="defaultSemiBold">
+                        {f.name?.trim() || 'Untitled folder'}
+                      </ThemedText>
+                    </View>
+                    <ThemedText
+                      type="metadata"
+                      style={{
+                        color: palette.tint,
+                        fontWeight: '600',
+                        letterSpacing: 1,
+                        textDecorationLine: 'underline',
+                      }}>
+                      OPEN
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <ThemedText
+                type="metadata"
+                style={{ color: palette.placeholder }}>
+                No folders yet.
+              </ThemedText>
+            )}
+            <View style={{ flexDirection: 'row', marginTop: 4 }}>
+              <Pressable
+                onPress={() => folders.onCreate()}
+                disabled={folders.busy}
+                style={[
+                  styles.secondaryButton,
+                  {
+                    borderColor: palette.tint,
+                    opacity: folders.busy ? 0.6 : 1,
+                  },
+                ]}>
+                {folders.busy ? (
+                  <ActivityIndicator color={palette.tint} />
+                ) : (
+                  <ThemedText
+                    style={[styles.secondaryButtonText, { color: palette.tint }]}>
+                    + New folder
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
+          </Section>
+        ) : null}
 
         {/* ========== OEM Specifications ========== */}
         <Section
@@ -1657,6 +1745,18 @@ const styles = StyleSheet.create({
   rowEnd: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+  },
+  folderList: {
+    gap: 8,
+  },
+  folderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 12,
   },
   secondaryButton: {
     borderWidth: 1,
