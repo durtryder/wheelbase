@@ -7,7 +7,7 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } f
 
 import { BuildSheetDisplay } from '@/components/build-sheet-display';
 import { DocumentList } from '@/components/document-list';
-import { MediaGallery } from '@/components/media-gallery';
+import { FolderViewer, MediaGallery } from '@/components/media-gallery';
 import { MediaReorderGrid } from '@/components/media-reorder-grid';
 import { QrShareButton } from '@/components/qr-share-button';
 import { ThemedText } from '@/components/themed-text';
@@ -61,6 +61,10 @@ export default function VehicleDetailScreen() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [folders, setFolders] = useState<MediaFolder[]>([]);
+  // Which folder (if any) has its viewer overlay open. Single-state
+  // because only one folder can be open at a time; the overlay
+  // covers the page so layering more would be weird.
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     current: number;
@@ -867,75 +871,74 @@ export default function VehicleDetailScreen() {
         </View>
         ) : null}
 
-        {/* Folder galleries — gated by their own `folders` flag
-            (separate from the main gallery's `photos`) so owners can
-            keep the main gallery public while hiding deep-cut archive
-            folders, or vice versa. Empty folders are hidden from
-            visitors; only the owner sees the "no items yet" hint. */}
-        {canShow('folders')
-          ? folders.map((folder) => {
-              const folderMedia = mediaByFolder.get(folder.id) ?? [];
-              if (!showAsOwner && folderMedia.length === 0) return null;
-              return (
-                <View key={folder.id} style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <View style={styles.sectionHeaderRow}>
-                      <ThemedText type="subtitle">
+        {/* Folders — gated by the share-sheet `folders` flag (separate
+            from the main gallery's `photos`). One section with a grid
+            of folder icon tiles; tap a tile to open that folder's
+            media in a fullscreen viewer. Keeps the top-level UI
+            uncluttered when the owner has several archive folders. */}
+        {(() => {
+          if (!canShow('folders')) return null;
+          const visibleFolders = folders.filter((f) => {
+            // Visitors only see folders that have something in them.
+            if (showAsOwner) return true;
+            const count = mediaByFolder.get(f.id)?.length ?? 0;
+            return count > 0;
+          });
+          if (visibleFolders.length === 0) return null;
+          return (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="subtitle">Folders</ThemedText>
+                <View
+                  style={[
+                    styles.sectionRule,
+                    { backgroundColor: palette.border },
+                  ]}
+                />
+              </View>
+              <View style={styles.folderTileGrid}>
+                {visibleFolders.map((folder) => {
+                  const folderMedia = mediaByFolder.get(folder.id) ?? [];
+                  return (
+                    <Pressable
+                      key={folder.id}
+                      onPress={() => setOpenFolderId(folder.id)}
+                      disabled={folderMedia.length === 0}
+                      style={({ hovered, pressed }) => [
+                        styles.folderTile,
+                        {
+                          borderColor: palette.border,
+                          backgroundColor: palette.surface,
+                          opacity: pressed ? 0.85 : folderMedia.length === 0 ? 0.6 : 1,
+                        },
+                        hovered && folderMedia.length > 0
+                          ? ({ cursor: 'pointer' } as object)
+                          : null,
+                      ]}>
+                      <MaterialIcons
+                        name="folder"
+                        size={44}
+                        color={palette.tint}
+                      />
+                      <ThemedText
+                        type="defaultSemiBold"
+                        numberOfLines={2}
+                        style={styles.folderTileName}>
                         {folder.name?.trim() || 'Untitled folder'}
                       </ThemedText>
-                      {showAsOwner ? (
-                        <Pressable
-                          onPress={() =>
-                            router.push(
-                              `/vehicles/folder/${folder.id}` as never,
-                            )
-                          }
-                          style={({ hovered }) => [
-                            { paddingVertical: 4, paddingHorizontal: 4 },
-                            hovered ? ({ cursor: 'pointer' } as object) : null,
-                          ]}>
-                          <ThemedText
-                            type="metadata"
-                            style={{
-                              color: palette.textMuted,
-                              fontWeight: '600',
-                              letterSpacing: 1,
-                              textDecorationLine: 'underline',
-                            }}>
-                            MANAGE
-                          </ThemedText>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.sectionRule,
-                        { backgroundColor: palette.border },
-                      ]}
-                    />
-                  </View>
-                  {folderMedia.length === 0 ? (
-                    <ThemedText
-                      type="metadata"
-                      style={{ color: palette.placeholder }}>
-                      No items yet — add some from the folder editor.
-                    </ThemedText>
-                  ) : (
-                    <MediaGallery
-                      media={folderMedia}
-                      vehicle={v}
-                      isOwner={showAsOwner}
-                      onSetCover={handleSetCover}
-                      onRemove={handleRemovePhoto}
-                      onUpdateCaption={handleUpdateCaption}
-                      photoActionBusy={photoActionBusy}
-                      showHero={false}
-                    />
-                  )}
-                </View>
-              );
-            })
-          : null}
+                      <ThemedText
+                        type="metadata"
+                        style={{ color: palette.textMuted }}>
+                        {folderMedia.length}{' '}
+                        {folderMedia.length === 1 ? 'item' : 'items'}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })()}
 
         {canShow('buildSheet') ? (
           <View style={styles.section}>
@@ -1042,6 +1045,14 @@ export default function VehicleDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      {openFolderId ? (
+        <FolderViewer
+          media={mediaByFolder.get(openFolderId) ?? []}
+          vehicle={v}
+          onClose={() => setOpenFolderId(null)}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -1694,6 +1705,24 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 16,
+  },
+  folderTileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  folderTile: {
+    width: 150,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    gap: 8,
+  },
+  folderTileName: {
+    textAlign: 'center',
+    marginTop: 2,
   },
   joinBanner: {
     borderWidth: 1,

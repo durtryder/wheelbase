@@ -840,6 +840,60 @@ function LightboxVideo({
   );
 }
 
+// ---------- Folder viewer ----------
+
+/**
+ * Self-contained overlay for opening a single media folder. Wraps the
+ * FullGalleryModal (with showHero={false}) and its own lightbox state
+ * so the detail page can render a row of folder icon tiles and open
+ * one with a single piece of state — no need to expose the modal /
+ * lightbox plumbing to callers.
+ *
+ * Folder photos are read-only in this surface — owners manage them
+ * via /vehicles/folder/<id>, so we don't pass through Lightbox owner
+ * actions (set cover / remove / edit caption). Keeps the UX honest.
+ */
+export function FolderViewer({
+  media,
+  vehicle,
+  onClose,
+}: {
+  media: MediaItem[];
+  vehicle: Vehicle;
+  onClose: () => void;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  return (
+    <>
+      <FullGalleryModal
+        media={media}
+        vehicle={vehicle}
+        onClose={onClose}
+        onOpenLightbox={(idx) => setLightboxIndex(idx)}
+        palette={palette}
+        showHero={false}
+      />
+      {lightboxIndex !== null ? (
+        <Lightbox
+          media={media}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          isOwner={false}
+          vehicle={vehicle}
+          onSetCover={() => {}}
+          onRemove={() => {}}
+          onUpdateCaption={async () => {}}
+          photoActionBusy={null}
+        />
+      ) : null}
+    </>
+  );
+}
+
 // ---------- Justified grid algorithm ----------
 
 function justifyGrid(
