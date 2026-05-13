@@ -907,9 +907,7 @@ export default function VehicleDetailScreen() {
                       style={({ hovered, pressed }) => [
                         styles.folderTile,
                         {
-                          borderColor: palette.border,
-                          backgroundColor: palette.surface,
-                          opacity: pressed ? 0.85 : folderMedia.length === 0 ? 0.6 : 1,
+                          opacity: pressed ? 0.7 : folderMedia.length === 0 ? 0.5 : 1,
                         },
                         hovered && folderMedia.length > 0
                           ? ({ cursor: 'pointer' } as object)
@@ -917,7 +915,7 @@ export default function VehicleDetailScreen() {
                       ]}>
                       <MaterialIcons
                         name="folder"
-                        size={44}
+                        size={55}
                         color={palette.tint}
                       />
                       <ThemedText
@@ -1713,16 +1711,17 @@ const styles = StyleSheet.create({
   },
   folderTile: {
     width: 150,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    gap: 8,
+    // Tight stack: icon, then name + count nearly touching beneath.
+    // Parent gap covers icon→name; name gets a small marginBottom
+    // override to pull the count up against it.
+    gap: 4,
   },
   folderTileName: {
     textAlign: 'center',
-    marginTop: 2,
+    marginBottom: -2,
   },
   joinBanner: {
     borderWidth: 1,
