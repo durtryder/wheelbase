@@ -513,9 +513,16 @@ export function VehicleForm({
           />
           <ShareToggle
             label="Photos &amp; Videos"
-            hint="The whole gallery beyond the cover photo."
+            hint="The main gallery at the top of the vehicle page."
             value={shareSheet.photos !== false}
             onChange={(v) => setShareSheetKey('photos', v)}
+            palette={palette}
+          />
+          <ShareToggle
+            label="Folders"
+            hint="Archive folder galleries — keep deep cuts off the share sheet without losing them."
+            value={shareSheet.folders !== false}
+            onChange={(v) => setShareSheetKey('folders', v)}
             palette={palette}
           />
           <ShareToggle
@@ -760,7 +767,10 @@ export function VehicleForm({
 
         {/* ========== Folders ========== */}
         {folders ? (
-          <Section title="Folders" palette={palette}>
+          <Section
+            title="Folders"
+            palette={palette}
+            shareSheetShared={shareSheet.folders !== false}>
             <ThemedText type="metadata" style={{ color: palette.textMuted }}>
               Group archive shots — restoration progress, event sets,
               behind-the-scenes — into folders so they don&apos;t crowd

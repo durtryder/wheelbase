@@ -509,6 +509,10 @@ export type ShareSheetConfig = {
   vehicleDetails?: boolean; // builder + modifications + ownership history
   buildSheet?: boolean;
   photos?: boolean;
+  /** Archive folder galleries (restoration sets etc.). Distinct from
+   *  `photos` so an owner can keep the main gallery public while
+   *  hiding the deep-cut folders, or vice versa. */
+  folders?: boolean;
   documents?: boolean;
   oemSpecs?: boolean;
   // Sensitive identity fields owners often prefer to hide piecemeal.

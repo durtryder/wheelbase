@@ -867,12 +867,12 @@ export default function VehicleDetailScreen() {
         </View>
         ) : null}
 
-        {/* Folder galleries — render in folder list order, gated by
-            the same share-sheet "photos" flag as the main gallery so
-            owners have a single switch. Folders with zero items show
-            the empty hint only to the owner; visitors don't see
-            empty buckets. */}
-        {canShow('photos')
+        {/* Folder galleries — gated by their own `folders` flag
+            (separate from the main gallery's `photos`) so owners can
+            keep the main gallery public while hiding deep-cut archive
+            folders, or vice versa. Empty folders are hidden from
+            visitors; only the owner sees the "no items yet" hint. */}
+        {canShow('folders')
           ? folders.map((folder) => {
               const folderMedia = mediaByFolder.get(folder.id) ?? [];
               if (!showAsOwner && folderMedia.length === 0) return null;
