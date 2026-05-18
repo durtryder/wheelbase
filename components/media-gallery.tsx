@@ -27,6 +27,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
+import { MediaReorderGrid } from '@/components/media-reorder-grid';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MediaItem, Vehicle } from '@/types/vehicle';
@@ -221,6 +222,13 @@ function FullGalleryModal({
   onOpenLightbox,
   palette,
   showHero = true,
+  isOwner = false,
+  onAddMedia,
+  onReorder,
+  uploading = false,
+  uploadProgress = null,
+  reorderSaving = false,
+  actionError = null,
 }: {
   media: MediaItem[];
   vehicle: Vehicle;
@@ -228,7 +236,31 @@ function FullGalleryModal({
   onOpenLightbox: (index: number) => void;
   palette: Palette;
   showHero?: boolean;
+  /** When true, the topBar renders Add / Reorder controls. */
+  isOwner?: boolean;
+  /** Owner picked "Add" — kick off the upload flow. */
+  onAddMedia?: () => void | Promise<void>;
+  /** Owner reordered tiles — persist this exact id order. */
+  onReorder?: (orderedIds: string[]) => void | Promise<void>;
+  uploading?: boolean;
+  uploadProgress?: {
+    current: number;
+    total: number;
+    uploaded: number;
+    totalBytes: number;
+  } | null;
+  reorderSaving?: boolean;
+  /** Inline error to show under the topBar (upload/reorder failures). */
+  actionError?: string | null;
 }) {
+  const [reorderMode, setReorderMode] = useState(false);
+  const canReorder = isOwner && !!onReorder && media.length > 1;
+  const canAdd = isOwner && !!onAddMedia && !reorderMode;
+  // If the media list drops below the reorder threshold while we're in
+  // reorder mode, drop back to grid view so we don't strand the user.
+  useEffect(() => {
+    if (reorderMode && !canReorder) setReorderMode(false);
+  }, [reorderMode, canReorder]);
   const { width: windowWidth } = useWindowDimensions();
   // Reserve a bit of horizontal padding on every device so thumbs never
   // butt against the screen edge. Tighter on narrow screens.
@@ -310,10 +342,78 @@ function FullGalleryModal({
               {media.length} {media.length === 1 ? 'photo' : 'photos'}
             </Text>
           </View>
-          <Pressable onPress={onClose} style={fullGalleryStyles.closeButton}>
-            <Text style={fullGalleryStyles.closeButtonText}>Close</Text>
-          </Pressable>
+          <View style={fullGalleryStyles.topBarActions}>
+            {canReorder ? (
+              <Pressable
+                onPress={() => setReorderMode((m) => !m)}
+                disabled={uploading}
+                style={({ hovered }) => [
+                  fullGalleryStyles.topBarTextButton,
+                  hovered ? ({ cursor: 'pointer' } as object) : null,
+                ]}>
+                <Text
+                  style={[
+                    fullGalleryStyles.topBarTextButtonLabel,
+                    {
+                      color: reorderMode ? palette.tint : '#f4e4bc',
+                      textDecorationLine: 'underline',
+                    },
+                  ]}>
+                  {reorderMode ? (reorderSaving ? 'SAVING…' : 'DONE') : 'REORDER'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {canAdd ? (
+              <Pressable
+                onPress={onAddMedia}
+                disabled={uploading}
+                style={({ pressed }) => [
+                  fullGalleryStyles.topBarAddButton,
+                  { opacity: uploading ? 0.6 : pressed ? 0.85 : 1 },
+                ]}>
+                {uploading ? (
+                  <ActivityIndicator color="#0c0c0c" size="small" />
+                ) : (
+                  <Text style={fullGalleryStyles.topBarAddButtonLabel}>
+                    {media.length === 0 ? 'Add media' : 'Add'}
+                  </Text>
+                )}
+              </Pressable>
+            ) : null}
+            <Pressable onPress={onClose} style={fullGalleryStyles.closeButton}>
+              <Text style={fullGalleryStyles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
         </View>
+
+        {/* Owner-only status row: reorder hint, upload progress, errors. */}
+        {isOwner &&
+        (reorderMode || uploadProgress || actionError) ? (
+          <View
+            style={[
+              fullGalleryStyles.statusRow,
+              { paddingHorizontal: horizontalPadding },
+            ]}>
+            {reorderMode ? (
+              <Text style={fullGalleryStyles.statusMuted}>
+                {Platform.OS === 'web'
+                  ? 'Drag tiles to reorder. Changes save automatically.'
+                  : 'Use the arrows on each tile to reorder. Changes save automatically.'}
+              </Text>
+            ) : null}
+            {uploadProgress ? (
+              <Text style={fullGalleryStyles.statusMuted}>
+                Uploading {uploadProgress.current} of {uploadProgress.total}
+                {uploadProgress.totalBytes > 0
+                  ? ` · ${formatGalleryBytes(uploadProgress.uploaded)} / ${formatGalleryBytes(uploadProgress.totalBytes)}`
+                  : ''}
+              </Text>
+            ) : null}
+            {actionError ? (
+              <Text style={fullGalleryStyles.statusError}>{actionError}</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <ScrollView
           contentContainerStyle={[
@@ -321,7 +421,12 @@ function FullGalleryModal({
             { paddingHorizontal: horizontalPadding },
           ]}
           showsVerticalScrollIndicator={false}>
-          {heroItem ? (
+          {reorderMode && onReorder ? (
+            <View style={fullGalleryStyles.reorderPanel}>
+              <MediaReorderGrid media={media} onReorder={onReorder} />
+            </View>
+          ) : null}
+          {!reorderMode && heroItem ? (
             <View
               style={[
                 fullGalleryStyles.hero,
@@ -399,7 +504,7 @@ function FullGalleryModal({
             </View>
           ) : null}
 
-          {restMedia.length > 0 ? (
+          {!reorderMode && restMedia.length > 0 ? (
             <View style={fullGalleryStyles.gridBlock}>
               <Text style={fullGalleryStyles.gridEyebrow}>
                 {restMedia.length === 1
@@ -849,22 +954,57 @@ function LightboxVideo({
  * one with a single piece of state — no need to expose the modal /
  * lightbox plumbing to callers.
  *
- * Folder photos are read-only in this surface — owners manage them
- * via /vehicles/folder/<id>, so we don't pass through Lightbox owner
- * actions (set cover / remove / edit caption). Keeps the UX honest.
+ * When `isOwner` is true the viewer surfaces the same in-place edits
+ * the main gallery does — Add / Reorder in the topBar, plus set-cover,
+ * remove, and caption editing inside the lightbox — so owners don't
+ * have to bounce out to /vehicles/folder/<id> for everyday tweaks.
+ * The folder editor screen still exists for rename / delete-folder.
  */
 export function FolderViewer({
   media,
   vehicle,
   onClose,
+  isOwner = false,
+  onAddMedia,
+  onReorder,
+  onSetCover,
+  onRemove,
+  onUpdateCaption,
+  uploading = false,
+  uploadProgress = null,
+  reorderSaving = false,
+  photoActionBusy = null,
+  actionError = null,
 }: {
   media: MediaItem[];
   vehicle: Vehicle;
   onClose: () => void;
+  isOwner?: boolean;
+  onAddMedia?: () => void | Promise<void>;
+  onReorder?: (orderedIds: string[]) => void | Promise<void>;
+  onSetCover?: (mediaId: string) => Promise<void> | void;
+  onRemove?: (item: MediaItem) => Promise<void> | void;
+  onUpdateCaption?: (mediaId: string, caption: string) => Promise<void> | void;
+  uploading?: boolean;
+  uploadProgress?: {
+    current: number;
+    total: number;
+    uploaded: number;
+    totalBytes: number;
+  } | null;
+  reorderSaving?: boolean;
+  photoActionBusy?: string | null;
+  actionError?: string | null;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Owners always get the full lightbox actions; viewers get the
+  // read-only no-op handlers below.
+  const noopSetCover = async () => {};
+  const noopRemove = async () => {};
+  const noopUpdateCaption = async () => {};
 
   return (
     <>
@@ -875,6 +1015,13 @@ export function FolderViewer({
         onOpenLightbox={(idx) => setLightboxIndex(idx)}
         palette={palette}
         showHero={false}
+        isOwner={isOwner}
+        onAddMedia={onAddMedia}
+        onReorder={onReorder}
+        uploading={uploading}
+        uploadProgress={uploadProgress}
+        reorderSaving={reorderSaving}
+        actionError={actionError}
       />
       {lightboxIndex !== null ? (
         <Lightbox
@@ -882,12 +1029,12 @@ export function FolderViewer({
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          isOwner={false}
+          isOwner={isOwner}
           vehicle={vehicle}
-          onSetCover={() => {}}
-          onRemove={() => {}}
-          onUpdateCaption={async () => {}}
-          photoActionBusy={null}
+          onSetCover={onSetCover ?? noopSetCover}
+          onRemove={onRemove ?? noopRemove}
+          onUpdateCaption={onUpdateCaption ?? noopUpdateCaption}
+          photoActionBusy={photoActionBusy}
         />
       ) : null}
     </>
@@ -1035,6 +1182,13 @@ function formatShutter(seconds: number): string {
   return `1/${denom}s`;
 }
 
+function formatGalleryBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -1174,6 +1328,38 @@ const fullGalleryStyles = StyleSheet.create({
     marginTop: 4,
     textTransform: 'uppercase',
   },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 0,
+  },
+  topBarTextButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  topBarTextButtonLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  topBarAddButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#f4e4bc',
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarAddButtonLabel: {
+    color: '#0c0c0c',
+    fontSize: 12,
+    fontFamily: Fonts.sans.bold,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
   closeButton: {
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -1187,6 +1373,27 @@ const fullGalleryStyles = StyleSheet.create({
     fontFamily: Fonts.sans.bold,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
+  },
+  statusRow: {
+    gap: 4,
+    paddingBottom: 8,
+  },
+  statusMuted: {
+    color: '#bbb5a6',
+    fontSize: 12,
+    fontFamily: Fonts.sans.regular,
+    letterSpacing: 0.4,
+  },
+  statusError: {
+    color: '#ff8080',
+    fontSize: 12,
+    fontFamily: Fonts.sans.semibold,
+    letterSpacing: 0.4,
+  },
+  reorderPanel: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 24,
   },
   scrollContent: {
     paddingBottom: 48,

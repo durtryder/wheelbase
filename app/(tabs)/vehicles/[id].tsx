@@ -85,6 +85,20 @@ export default function VehicleDetailScreen() {
   // batched write makes its round-trip. Cleared when the snapshot comes
   // back with the new order baked in.
   const [reorderOverride, setReorderOverride] = useState<string[] | null>(null);
+
+  // In-folder owner edits (Add / Reorder) — separate state from the main
+  // gallery so a folder upload doesn't fight the main "Add more" button.
+  // The viewer is a modal overlay, so it can only target one folder at a
+  // time; we don't need a per-folder map.
+  const [folderUploading, setFolderUploading] = useState(false);
+  const [folderUploadProgress, setFolderUploadProgress] = useState<{
+    current: number;
+    total: number;
+    uploaded: number;
+    totalBytes: number;
+  } | null>(null);
+  const [folderReorderSaving, setFolderReorderSaving] = useState(false);
+  const [folderActionError, setFolderActionError] = useState<string | null>(null);
   // Owner-only "preview as visitor" mode — flips the page into the
   // exact view a non-owner sees so the owner can sanity-check their
   // share-sheet config without opening an incognito tab.
@@ -385,6 +399,100 @@ export default function VehicleDetailScreen() {
       setPhotoActionBusy(null);
     }
   }
+
+  // ImagePicker → Storage → Firestore, scoped to a folder. Mirrors
+  // handleAddMedia but stamps `folderId` on each uploaded item and skips
+  // the cover-auto-promotion step (folder uploads are explicitly archive
+  // material; promoting one to cover from a folder upload would surprise).
+  async function handleAddMediaToFolder(folderId: string) {
+    if (!user || !id) return;
+    setFolderActionError(null);
+
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted' && perm.status !== 'undetermined') {
+        setFolderActionError('Photo library permission denied.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      setFolderUploading(true);
+      const total = result.assets.length;
+      for (let i = 0; i < result.assets.length; i++) {
+        const asset = result.assets[i];
+        const isVideo =
+          asset.type === 'video' ||
+          (asset.mimeType?.startsWith('video/') ?? false);
+        setFolderUploadProgress({
+          current: i + 1,
+          total,
+          uploaded: 0,
+          totalBytes: 0,
+        });
+        const item = await uploadVehicleMedia({
+          kind: isVideo ? 'video' : 'photo',
+          ownerId: user.uid,
+          vehicleId: id,
+          folderId,
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          durationMs: isVideo && asset.duration ? asset.duration : undefined,
+          onProgress: (uploaded, totalBytes) =>
+            setFolderUploadProgress({
+              current: i + 1,
+              total,
+              uploaded,
+              totalBytes,
+            }),
+        });
+
+        // Optimistic insert into the local media list so the new item
+        // appears in the folder immediately. onSnapshot will reconcile.
+        setMedia((prev) =>
+          prev.some((m) => m.id === item.id) ? prev : [...prev, item],
+        );
+      }
+    } catch (e) {
+      console.error('[detail] folder upload flow failed', e);
+      setFolderActionError(e instanceof Error ? e.message : 'Upload failed.');
+    } finally {
+      setFolderUploading(false);
+      setFolderUploadProgress(null);
+    }
+  }
+
+  // Persist a new id order for the items inside a folder. Folder items
+  // share the same `order` field as the main gallery, but the main and
+  // folder queries each filter by folderId so the 0..N-1 indices don't
+  // collide across buckets.
+  async function handleReorderFolderMedia(orderedIds: string[]) {
+    setFolderActionError(null);
+    setFolderReorderSaving(true);
+    try {
+      await reorderMediaItems(orderedIds);
+    } catch (e) {
+      setFolderActionError(
+        e instanceof Error ? e.message : 'Could not save new order.',
+      );
+    } finally {
+      setFolderReorderSaving(false);
+    }
+  }
+
+  // Reset folder-scoped error/progress whenever the viewer opens a new
+  // folder (or closes), so stale state doesn't bleed across openings.
+  useEffect(() => {
+    setFolderActionError(null);
+    setFolderUploadProgress(null);
+  }, [openFolderId]);
 
   if (vehicle === undefined && !error) {
     return (
@@ -1049,6 +1157,17 @@ export default function VehicleDetailScreen() {
           media={mediaByFolder.get(openFolderId) ?? []}
           vehicle={v}
           onClose={() => setOpenFolderId(null)}
+          isOwner={showAsOwner}
+          onAddMedia={() => handleAddMediaToFolder(openFolderId)}
+          onReorder={handleReorderFolderMedia}
+          onSetCover={handleSetCover}
+          onRemove={handleRemovePhoto}
+          onUpdateCaption={handleUpdateCaption}
+          uploading={folderUploading}
+          uploadProgress={folderUploadProgress}
+          reorderSaving={folderReorderSaving}
+          photoActionBusy={photoActionBusy}
+          actionError={folderActionError}
         />
       ) : null}
     </ThemedView>
